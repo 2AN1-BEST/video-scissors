@@ -1,0 +1,14 @@
+{
+  "name": "video-scissors",
+  "version": "1.0.0",
+  "description": "可视化视频裁剪工具 - 基于 ffmpeg 的视频截取",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "dependencies": {
+    "express": "^4.21.2",
+    "multer": "^2.3.0"
+  }
+}

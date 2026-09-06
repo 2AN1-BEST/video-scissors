@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Video Scissors - 可视化视频裁剪</title>
+  <link rel="stylesheet" href="/public/style.css">
+</head>
+<body>
+  <div class="app">
+    <!-- Header -->
+    <header class="app-header">
+      <div class="logo">
+        <span class="logo-icon">✂️</span>
+        <span class="logo-text">Video Scissors</span>
+      </div>
+      <span class="tagline">可视化视频裁剪工具</span>
+    </header>
+
+    <main class="app-main">
+      <!-- Upload Zone -->
+      <div id="uploadZone" class="upload-zone">
+        <div class="upload-icon">📹</div>
+        <h2 class="upload-title">拖拽视频文件到此处</h2>
+        <p class="upload-subtitle">或点击选择文件</p>
+        <p class="upload-formats">支持 MP4 · AVI · MOV · MKV · WebM · FLV · WMV</p>
+        <input type="file" id="fileInput" accept="video/*" hidden>
+      </div>
+
+      <!-- Editor -->
+      <div id="editor" class="editor hidden">
+        <!-- Video Player -->
+        <div class="video-panel">
+          <div class="video-wrapper">
+            <video id="videoPlayer" controls preload="metadata" playsinline></video>
+            <div id="videoWarning" class="video-warning hidden">⚠️ 浏览器无法预览此格式，但仍可裁剪</div>
+          </div>
+          <div class="video-info">
+            <span id="videoName" class="video-name"></span>
+            <span id="videoMeta" class="video-meta"></span>
+          </div>
+        </div>
+
+        <!-- Timeline -->
+        <div class="timeline-section">
+          <div class="timeline" id="timeline">
+            <div class="timeline-thumbs" id="thumbs"></div>
+            <div class="timeline-dim"></div>
+            <div class="timeline-selection" id="selection"></div>
+            <div class="timeline-handle" id="startHandle">
+              <div class="handle-grip"></div>
+            </div>
+            <div class="timeline-handle" id="endHandle">
+              <div class="handle-grip"></div>
+            </div>
+            <div class="timeline-playhead" id="playhead"></div>
+          </div>
+          <div class="time-labels">
+            <span id="startTimeLabel" class="time-label">00:00.00</span>
+            <span id="segDurationLabel" class="time-label seg-dur">片段 00:00.00</span>
+            <span id="totalTimeLabel" class="time-label">00:00.00</span>
+          </div>
+        </div>
+
+        <!-- Quick Actions -->
+        <div class="quick-actions">
+          <button id="setStartBtn" class="btn btn-ghost">
+            <span class="btn-bracket">[</span>
+            <span>设为起点</span>
+          </button>
+          <button id="previewBtn" class="btn btn-ghost">
+            <span>▶</span>
+            <span id="previewBtnText">预览片段</span>
+          </button>
+          <button id="setEndBtn" class="btn btn-ghost">
+            <span>设为终点</span>
+            <span class="btn-bracket">]</span>
+          </button>
+        </div>
+
+        <!-- Time Inputs -->
+        <div class="time-inputs">
+          <div class="time-field">
+            <label for="startInput">开始时间</label>
+            <input type="text" id="startInput" class="time-input" value="00:00:00.000" spellcheck="false">
+          </div>
+          <div class="time-field">
+            <label for="endInput">结束时间</label>
+            <input type="text" id="endInput" class="time-input" value="00:00:00.000" spellcheck="false">
+          </div>
+        </div>
+
+        <!-- Trim Mode -->
+        <div class="trim-mode">
+          <label class="mode-card">
+            <input type="radio" name="mode" value="fast" checked>
+            <span class="mode-icon">⚡</span>
+            <span class="mode-title">快速模式</span>
+            <span class="mode-desc">无损流复制，秒级完成</span>
+          </label>
+          <label class="mode-card">
+            <input type="radio" name="mode" value="precise">
+            <span class="mode-icon">🎯</span>
+            <span class="mode-title">精确模式</span>
+            <span class="mode-desc">重新编码，帧级精确</span>
+          </label>
+        </div>
+
+        <!-- Trim Button -->
+        <button id="trimBtn" class="btn btn-primary btn-block">✂️ 开始裁剪</button>
+
+        <!-- Progress -->
+        <div id="progressArea" class="progress-area hidden">
+          <div class="progress-bar">
+            <div class="progress-fill" id="progressFill"></div>
+          </div>
+          <span id="progressText" class="progress-text">处理中...</span>
+        </div>
+
+        <!-- Result -->
+        <div id="resultArea" class="result-area hidden">
+          <p class="result-msg">✅ 裁剪完成！</p>
+          <video id="resultVideo" controls preload="metadata" class="result-video"></video>
+          <a id="downloadLink" class="btn btn-success btn-block" download>⬇️ 下载视频</a>
+        </div>
+
+        <!-- Error -->
+        <div id="errorArea" class="error-area hidden">
+          <p id="errorText" class="error-msg"></p>
+        </div>
+      </div>
+
+      <!-- New Video -->
+      <div id="newVideoBar" class="new-video-bar hidden">
+        <button id="newVideoBtn" class="btn btn-ghost">选择新视频</button>
+      </div>
+    </main>
+  </div>
+
+  <script src="/public/app.js"></script>
+</body>
+</html>

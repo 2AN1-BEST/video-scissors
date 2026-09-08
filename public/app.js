@@ -84,6 +84,24 @@ function parseTime(str) {
   return parts[0];
 }
 
+/* ===== backend cache ===== */
+// 后端会把上传的源视频（单个最大 10 GB）和导出片段留在磁盘上。这个工具是单视频
+// 工作流,前端一刷新 state 就空了,那些文件再也不会被引用 —— 不及时清就无限堆积
+// （实测一晚堆了 12 GB）。所以两个时机主动清空:
+//   1. 页面加载完成(window load)
+//   2. 放入新视频之前
+async function clearBackendCache() {
+  try {
+    await fetch('/api/clear-cache', { method: 'POST' });
+  } catch {
+    // 服务没起或网络异常 —— 清不掉也没法补救,静默跳过,不影响主流程
+  }
+}
+
+// 页面加载完成事件。用 load 而不是 DOMContentLoaded: 它等所有子资源(字体等)
+// 就绪后才触发,语义上就是"页面加载完成"。
+window.addEventListener('load', clearBackendCache);
+
 /* ===== upload ===== */
 function setupUpload() {
   els.uploadZone.addEventListener('click', () => els.fileInput.click());
@@ -119,6 +137,9 @@ async function handleFile(file) {
       '<p class="upload-status">正在处理视频…</p>' +
     '</div>' +
     '<div class="film-rail" aria-hidden="true"></div>';
+
+  // 先清掉上一个视频再落盘新的 —— 顺序不能反,否则会把刚传的文件一起删掉
+  await clearBackendCache();
 
   const formData = new FormData();
   formData.append('video', file);

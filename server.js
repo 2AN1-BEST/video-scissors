@@ -33,6 +33,9 @@ const storage = multer.diskStorage({
 const MAX_UPLOAD_GB = parseInt(process.env.MAX_UPLOAD_GB, 10) || 10;
 const MAX_UPLOAD_BYTES = MAX_UPLOAD_GB * 1024 * 1024 * 1024;
 
+// 残留文件的最长存活时间（兜底定时清理用，分钟）。可用 CACHE_MAX_AGE_MIN 覆盖。
+const CACHE_MAX_AGE_MIN = parseInt(process.env.CACHE_MAX_AGE_MIN, 10) || 60;
+
 const upload = multer({
   storage,
   limits: { fileSize: MAX_UPLOAD_BYTES },
@@ -535,10 +538,69 @@ app.get('/api/status/:jobId', (req, res) => {
   res.json(job);
 });
 
+/* ---------- cache ---------- */
+
+// 递归统计体积（缩略图目录也要算进去）
+function sizeOf(p) {
+  try {
+    const st = fs.statSync(p);
+    if (!st.isDirectory()) return st.size;
+    return fs.readdirSync(p).reduce((sum, f) => sum + sizeOf(path.join(p, f)), 0);
+  } catch { return 0; }
+}
+
+// Windows 上被占用的文件删不掉(浏览器 video 元素持有句柄、ffmpeg 正在读都会 EBUSY),
+// 所以重试几次 —— 刷新页面时旧文档的句柄释放可能比 load 事件晚一点点。
+async function removeWithRetry(target, tries = 4, delay = 250) {
+  let lastErr = null;
+  for (let i = 0; i < tries; i++) {
+    try {
+      await fs.promises.rm(target, { recursive: true, force: true, maxRetries: 3, retryDelay: 150 });
+      return true;
+    } catch (err) {
+      lastErr = err;
+      if (i === tries - 1) break;
+      await new Promise(r => setTimeout(r, delay));
+    }
+  }
+  console.error('[clear-cache] 删除失败:', target, lastErr && lastErr.code, lastErr && lastErr.message);
+  return false;
+}
+
+// 清空一切生成物：上传的源视频、缩略图目录、导出的片段与 ZIP，以及内存里的任务表。
+// 由前端在【页面加载完成】和【放入新视频之前】调用 —— 单视频工作流下,任何历史
+// 文件都不再被引用,留着只会吃磁盘(实测一个晚上堆了 12 GB)。
+async function clearCache() {
+  let removed = 0;
+  let failed = 0;
+  let freed = 0;
+
+  for (const dir of [UPLOAD_DIR, OUTPUT_DIR]) {
+    if (!fs.existsSync(dir)) continue;
+    for (const item of fs.readdirSync(dir)) {
+      const itemPath = path.join(dir, item);
+      freed += sizeOf(itemPath);
+      if (await removeWithRetry(itemPath)) removed++;
+      else failed++;
+    }
+  }
+
+  jobs.clear();
+  return { removed, failed, freed };
+}
+
+app.post('/api/clear-cache', async (req, res) => {
+  try {
+    res.json({ ok: true, ...(await clearCache()) });
+  } catch (err) {
+    res.status(500).json({ error: '清空缓存失败: ' + err.message });
+  }
+});
+
 /* ---------- cleanup ---------- */
 function cleanupOldFiles() {
   const now = Date.now();
-  const maxAge = 2 * 60 * 60 * 1000; // 2 hours
+  const maxAge = CACHE_MAX_AGE_MIN * 60 * 1000;
 
   [UPLOAD_DIR, OUTPUT_DIR].forEach(dir => {
     if (!fs.existsSync(dir)) return;
@@ -557,6 +619,10 @@ function cleanupOldFiles() {
 }
 
 cleanupOldFiles();
+
+// 兜底：前端刷新/换片时会主动清空,但如果用户直接关掉标签页,残留就没人管了。
+// 定时扫一遍把超龄文件收走,避免服务长期运行时无限堆积。
+setInterval(cleanupOldFiles, 15 * 60 * 1000).unref();
 
 /* ---------- start ---------- */
 app.listen(PORT, () => {

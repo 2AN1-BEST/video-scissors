@@ -629,6 +629,36 @@ els.video.addEventListener('seeked', () => {
 els.video.addEventListener('play', () => { seekTarget = null; });
 els.video.addEventListener('loadedmetadata', () => { seekTarget = null; });
 
+// The native control bar is easy to miss while using the keyboard, so mirror the
+// new volume on screen briefly, right where the eye already is.
+let volumeToast = null;
+let volumeToastTimer = null;
+function showVolumeToast(pct) {
+  if (!volumeToast) {
+    volumeToast = document.createElement('div');
+    volumeToast.className = 'volume-toast';
+    document.body.appendChild(volumeToast);
+  }
+  volumeToast.textContent = (pct > 0 ? '\u{1F50A}' : '\u{1F507}') + ' 音量 ' + pct + '%';
+  volumeToast.classList.add('show');
+  clearTimeout(volumeToastTimer);
+  volumeToastTimer = setTimeout(() => {
+    if (volumeToast) volumeToast.classList.remove('show');
+  }, 900);
+}
+
+// Change playback volume by `delta` (±0.1 = ±10%), clamped to [0, 1].
+// Rounding to 2 decimals avoids float drift (0.1 + 0.2 => 0.30000000000000004).
+function adjustVolume(delta) {
+  if (!state.file) return;
+  let next = Math.round((els.video.volume + delta) * 100) / 100;
+  next = Math.min(1, Math.max(0, next));
+  els.video.volume = next;
+  // Raising the volume should also un-mute, otherwise nothing is heard.
+  if (next > 0 && els.video.muted) els.video.muted = false;
+  showVolumeToast(Math.round(next * 100));
+}
+
 document.addEventListener('keydown', e => {
   if (!state.file) return;
   const t = e.target;
@@ -659,6 +689,14 @@ document.addEventListener('keydown', e => {
     case 'ArrowRight':
       e.preventDefault();
       seekBy(getSeekStep());
+      break;
+    case 'ArrowUp':
+      e.preventDefault();
+      adjustVolume(0.1);
+      break;
+    case 'ArrowDown':
+      e.preventDefault();
+      adjustVolume(-0.1);
       break;
   }
 });

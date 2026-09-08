@@ -283,6 +283,30 @@ body {
   .seek-hint { margin-left: 0; }
 }
 
+/* transient volume readout (↑ / ↓ keys) */
+.volume-toast {
+  position: fixed;
+  left: 50%;
+  bottom: 48px;
+  transform: translate(-50%, 8px);
+  z-index: 200;
+  padding: 8px 18px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #fff;
+  background: rgba(15, 23, 42, 0.88);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 999px;
+  backdrop-filter: blur(6px);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.16s ease, transform 0.16s ease;
+}
+.volume-toast.show {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
 /* ===== timeline ===== */
 .timeline-section { display: flex; flex-direction: column; gap: 8px; }
 

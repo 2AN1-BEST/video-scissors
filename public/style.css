@@ -27,6 +27,8 @@
   margin: 0;
   padding: 0;
   box-sizing: border-box;
+  /* global: never show the text caret / insertion point (inherited by all elements) */
+  caret-color: transparent;
 }
 
 body {
@@ -81,7 +83,12 @@ body {
   cursor: pointer;
   background: var(--bg-panel);
   transition: all var(--transition);
+  /* prevent stray text selection / caret when clicking to import */
+  user-select: none;
+  -webkit-user-select: none;
 }
+
+/* caret hiding is now global (see reset); this only stops click-selection artefacts */
 
 .upload-zone:hover {
   border-color: var(--primary);
@@ -169,6 +176,63 @@ body {
 .video-name { font-weight: 600; }
 .video-meta { color: var(--text-secondary); }
 .video-meta::before { content: '\00B7'; margin-right: 8px; }
+
+/* ===== seek step (keyboard interval) ===== */
+.seek-step {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.seek-label {
+  font-size: 13px;
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.seek-input {
+  width: 88px;
+  padding: 8px 12px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  font-size: 14px;
+  font-family: var(--mono);
+  outline: none;
+  transition: all var(--transition);
+}
+
+.seek-input:focus {
+  border-color: var(--primary);
+  background: var(--bg-panel);
+}
+
+.seek-unit {
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.seek-curtime {
+  font-family: var(--mono);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--handle);
+  padding: 2px 8px;
+  background: rgba(245, 158, 11, 0.12);
+  border-radius: var(--radius-xs);
+}
+
+.seek-hint {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-left: auto;
+}
+
+@media (max-width: 640px) {
+  .seek-hint { margin-left: 0; }
+}
 
 /* ===== timeline ===== */
 .timeline-section { display: flex; flex-direction: column; gap: 8px; }

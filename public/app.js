@@ -18,6 +18,8 @@ const els = {
   videoWarning: $('videoWarning'),
   videoName: $('videoName'),
   videoMeta: $('videoMeta'),
+  seekStepInput: $('seekStepInput'),
+  currentTimeLabel: $('currentTimeLabel'),
   timeline: $('timeline'),
   thumbs: $('thumbs'),
   selection: $('selection'),
@@ -254,6 +256,7 @@ function setupTimelineInteraction() {
   els.video.addEventListener('timeupdate', () => {
     const pct = (els.video.currentTime / state.duration) * 100;
     els.playhead.style.left = pct + '%';
+    els.currentTimeLabel.textContent = formatTime(els.video.currentTime);
 
     if (state.previewMode && els.video.currentTime >= state.endTime - 0.05) {
       els.video.currentTime = state.startTime;
@@ -541,16 +544,92 @@ els.newVideoBtn.addEventListener('click', () => {
   els.fileInput.value = '';
 });
 
+/* ===== seek step input: positive integers only (no 0, no decimals) ===== */
+function sanitizeSeekStep() {
+  const cleaned = els.seekStepInput.value
+    .split('.')[0]          // drop any decimal part (integers only)
+    .replace(/[^0-9]/g, '') // strip anything that isn't a digit
+    .replace(/^0+/, '');    // strip leading zeros -> also blocks plain "0"
+  if (cleaned !== els.seekStepInput.value) els.seekStepInput.value = cleaned;
+}
+
+els.seekStepInput.addEventListener('input', sanitizeSeekStep);
+
+// Leave the field when the value is committed, so Space / ←→ shortcuts work again
+// (while an input has focus the shortcut handler is intentionally disabled).
+els.seekStepInput.addEventListener('change', () => { sanitizeSeekStep(); els.seekStepInput.blur(); });
+els.seekStepInput.addEventListener('keydown', e => {
+  if (e.key === 'Enter') { e.preventDefault(); sanitizeSeekStep(); els.seekStepInput.blur(); }
+});
+
+// On blur, restore a sane value if the field was left empty / out of range.
+els.seekStepInput.addEventListener('blur', () => {
+  let n = parseInt(els.seekStepInput.value, 10);
+  if (isNaN(n) || n < 1) n = 3;
+  if (n > 600) n = 600;
+  els.seekStepInput.value = String(n);
+});
+
 /* ===== keyboard shortcuts ===== */
+
+// Step size in seconds: a positive integer, default 3, clamped to [1, 600].
+function getSeekStep() {
+  const v = parseInt(els.seekStepInput.value, 10);
+  if (isNaN(v) || v < 1) return 3;
+  return Math.min(600, v);
+}
+
+// The position we last asked for. Browsers can land on a slightly different frame
+// than requested, so accumulating from this (instead of reading currentTime each
+// time) keeps repeated presses stepping by exactly the configured amount.
+let seekTarget = null;
+let stepSeeking = false;
+
+function seekBy(delta) {
+  if (!state.file) return;
+  const maxDur = state.duration || els.video.duration || 0;
+  // While paused: accumulate from our own target for exact stepping.
+  // While playing: follow the live playhead.
+  const base = (seekTarget !== null && els.video.paused) ? seekTarget : els.video.currentTime;
+  const next = Math.max(0, Math.min(maxDur, base + delta));
+  seekTarget = next;
+  stepSeeking = true;
+  els.video.currentTime = next;
+}
+
+// Resync to the real playhead when the position changes for any other reason
+// (timeline click, native controls, playback, new video).
+els.video.addEventListener('seeked', () => {
+  if (stepSeeking) {
+    stepSeeking = false;
+    // If the browser couldn't actually land near the requested time (coarse
+    // seeking / sparse keyframes), resync to the real playhead — otherwise our
+    // target drifts away from reality and later presses appear to do nothing.
+    if (seekTarget !== null && Math.abs(els.video.currentTime - seekTarget) > 0.75) {
+      seekTarget = els.video.currentTime;
+    }
+  } else {
+    seekTarget = null; // external seek (timeline click, native controls)
+  }
+});
+els.video.addEventListener('play', () => { seekTarget = null; });
+els.video.addEventListener('loadedmetadata', () => { seekTarget = null; });
+
 document.addEventListener('keydown', e => {
   if (!state.file) return;
-  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+  const t = e.target;
+  const inEditable = (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA');
+
+  // Space always toggles playback — even when the step field has focus (a number
+  // input can't usefully accept a space). Other shortcuts stay off while typing.
+  if (e.key === ' ' && (!inEditable || t === els.seekStepInput)) {
+    e.preventDefault();
+    if (els.video.paused) els.video.play(); else els.video.pause();
+    return;
+  }
+  if (inEditable) return;
 
   switch (e.key) {
-    case ' ':
-      e.preventDefault();
-      if (els.video.paused) els.video.play(); else els.video.pause();
-      break;
     case '[':
       state.startTime = Math.max(0, Math.min(els.video.currentTime, state.endTime - 0.1));
       updateTimeline();
@@ -558,6 +637,14 @@ document.addEventListener('keydown', e => {
     case ']':
       state.endTime = Math.min(state.duration, Math.max(els.video.currentTime, state.startTime + 0.1));
       updateTimeline();
+      break;
+    case 'ArrowLeft':
+      e.preventDefault();
+      seekBy(-getSeekStep());
+      break;
+    case 'ArrowRight':
+      e.preventDefault();
+      seekBy(getSeekStep());
       break;
   }
 });

@@ -24,8 +24,9 @@
         <h2 class="upload-title" data-page-node-id="K10FYJIUA6tJyqVhNsXFWz">拖拽视频文件到此处</h2>
         <p class="upload-subtitle" data-page-node-id="K0Oda3NPaFK9VDV2ssGG75">或点击选择文件</p>
         <p class="upload-formats" data-page-node-id="wBwVr1H4vDKkud4UBGm0N6">支持 MP4 · AVI · MOV · MKV · WebM · FLV · WMV</p>
-        <input type="file" id="fileInput" accept="video/*" hidden data-page-node-id="2ERrsDOAeDo0nudSZGJLu4">
       </div>
+      <!-- kept outside #uploadZone so innerHTML swaps never detach/destroy it -->
+      <input type="file" id="fileInput" accept="video/*" hidden data-page-node-id="2ERrsDOAeDo0nudSZGJLu4">
 
       <!-- Editor -->
       <div id="editor" class="editor hidden" data-page-node-id="mbs55Mir0uPCNoDKpQTQxe">
@@ -38,6 +39,13 @@
           <div class="video-info" data-page-node-id="pOaM7PfuVVPcU82s9Xjdob">
             <span id="videoName" class="video-name" data-page-node-id="61YmfHoG7qdqVz5JqpJxtr"></span>
             <span id="videoMeta" class="video-meta" data-page-node-id="FmXxXaewcRNhh81CfYvHsB"></span>
+          </div>
+          <div class="seek-step">
+            <label for="seekStepInput" class="seek-label">←/→ 步进</label>
+            <input type="number" id="seekStepInput" class="seek-input" value="3" min="1" max="600" step="1" inputmode="numeric" pattern="[1-9][0-9]*" spellcheck="false">
+            <span class="seek-unit">秒</span>
+            <span id="currentTimeLabel" class="seek-curtime">00:00.00</span>
+            <span class="seek-hint">按 ← / → 快进/快退</span>
           </div>
         </div>
 

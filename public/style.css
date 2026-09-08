@@ -753,15 +753,22 @@ body::after {
   box-shadow: var(--sh-2);
 }
 
-.btn-success {
-  background: var(--ok);
-  color: #06281b;
-  border-color: var(--ok);
+/* 次级下载按钮：橙色描边，与 .btn-primary 同色系，靠"描边 vs 实心"分主次。
+   ZIP 下载是实心主按钮，单片段下载是描边次级按钮 —— 同一色相，不冲突。 */
+.btn-outline {
+  background: var(--accent-soft);
+  color: var(--accent);
+  border: 1px solid var(--accent-line);
   padding: 13px 24px;
   font-size: var(--fs-md);
   font-weight: 700;
+  letter-spacing: 0.02em;
 }
-.btn-success:hover:not(:disabled) { background: #5fe8ae; border-color: #5fe8ae; }
+.btn-outline:hover:not(:disabled) {
+  background: var(--accent);
+  color: var(--on-accent);
+  border-color: var(--accent);
+}
 
 /* 机器按键：发丝边框 + 悬停点亮 */
 .btn-ghost {
@@ -929,6 +936,9 @@ body::after {
 /* ============================================================
    结果 / 错误
    ============================================================ */
+/* 结果区的标识色与下载按钮统一走主色（橙）。
+   绿(--ok)只用于音量读数这类"状态指示",不该出现在导出结果这条主链路里,
+   否则同一屏会出现两套强调色。 */
 .result-area {
   display: flex;
   flex-direction: column;
@@ -936,7 +946,7 @@ body::after {
   padding: var(--s-5);
   background: var(--surface);
   border: 1px solid var(--line);
-  border-left: 4px solid var(--ok);
+  border-left: 4px solid var(--accent);
   border-radius: var(--radius);
 }
 .result-msg { font-size: var(--fs-md); font-weight: 600; }

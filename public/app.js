@@ -441,12 +441,22 @@ function updateExportUI() {
 els.addSegBtn.addEventListener('click', addSegment);
 
 /* ===== export ===== */
+
+// 处理中禁用"选择新视频"：中途换片会让正在跑的 ffmpeg 任务失去源文件，
+// 而且导出结果里的下载链接指向的文件会被下一次清缓存删掉。
+// 用 disabled 而不是隐藏 —— 隐藏会让下方内容往上跳，按钮凭空消失也让人困惑。
+// 所有出口（成功 / 失败）都必须走 setBusy(false)，否则按钮会永久卡在禁用态。
+function setBusy(busy) {
+  els.newVideoBtn.disabled = busy;
+  els.mergeBtn.disabled = busy;
+  els.separateBtn.disabled = busy;
+}
+
 async function startExport(type) {
   const mode = document.querySelector('input[name="mode"]:checked').value;
   if (state.segments.length === 0) return;
 
-  els.mergeBtn.disabled = true;
-  els.separateBtn.disabled = true;
+  setBusy(true);
   els.mergeBtn.textContent = '\u5904\u7406\u4E2D...';
   els.separateBtn.classList.add('hidden');
   els.progressArea.classList.remove('hidden');
@@ -526,7 +536,7 @@ function renderResultItems(files, zipUrl, zipName) {
     item.className = 'result-item';
     item.innerHTML =
       '<video src="' + f.url + '" controls preload="metadata" class="result-video"></video>' +
-      '<a class="btn btn-success btn-block" href="' + f.url + '" download="' + dlName + '">\u2B07\uFE0F \u4E0B\u8F7D\u7247\u6BB5 ' + (idx + 1) + '</a>';
+      '<a class="btn btn-outline btn-block" href="' + f.url + '" download="' + dlName + '">\u2B07\uFE0F \u4E0B\u8F7D\u7247\u6BB5 ' + (idx + 1) + '</a>';
     els.resultList.appendChild(item);
   });
 }
@@ -536,8 +546,7 @@ function showResult(url, filename) {
   els.resultArea.classList.remove('hidden');
   els.resultMsg.textContent = '\u2705 \u5DF2\u5408\u5E76\u5BFC\u51FA\uFF01';
   renderResultItems([{ url, filename }]);
-  els.mergeBtn.disabled = false;
-  els.separateBtn.disabled = false;
+  setBusy(false);
   updateExportUI();
 }
 
@@ -546,8 +555,7 @@ function showResults(files, zipUrl, zipName) {
   els.resultArea.classList.remove('hidden');
   els.resultMsg.textContent = '\u2705 \u5DF2\u5BFC\u51FA ' + files.length + ' \u4E2A\u5355\u72EC\u7247\u6BB5\uFF01';
   renderResultItems(files, zipUrl, zipName);
-  els.mergeBtn.disabled = false;
-  els.separateBtn.disabled = false;
+  setBusy(false);
   updateExportUI();
 }
 
@@ -555,8 +563,7 @@ function showError(msg) {
   els.progressArea.classList.add('hidden');
   els.errorArea.classList.remove('hidden');
   els.errorText.textContent = '\u274C ' + msg;
-  els.mergeBtn.disabled = false;
-  els.separateBtn.disabled = false;
+  setBusy(false);
   updateExportUI();
 }
 
@@ -575,6 +582,7 @@ els.newVideoBtn.addEventListener('click', () => {
   els.video.removeAttribute('src');
   els.video.load();
 
+  els.uploadZone.classList.remove('hidden'); // loadVideo 时给它加了 hidden,这里要还原
   els.editor.classList.add('hidden');
   els.newVideoBar.classList.add('hidden');
   els.resultArea.classList.add('hidden');

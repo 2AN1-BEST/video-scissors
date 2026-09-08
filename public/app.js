@@ -719,6 +719,29 @@ function adjustVolume(delta) {
   if (next > 0 && els.video.muted) els.video.muted = false;
 }
 
+// 全屏切换：Enter。直接全屏 <video> 本身 —— 原生 controls 在全屏下照常可用，
+// 不用自己再做一套控件。
+function toggleFullscreen() {
+  const d = document;
+  const el = els.video;
+  const active = d.fullscreenElement || d.webkitFullscreenElement;
+  if (active) {
+    const exit = d.exitFullscreen || d.webkitExitFullscreen;
+    if (exit) Promise.resolve(exit.call(d)).catch(() => {});
+    return;
+  }
+  // iOS Safari 只有 video.webkitEnterFullscreen,且没有标准 requestFullscreen。
+  const enter = el.requestFullscreen || el.webkitRequestFullscreen || el.webkitEnterFullscreen;
+  if (enter) Promise.resolve(enter.call(el)).catch(() => {});
+}
+
+// button / a / [role=button] 获得焦点时,Enter 的原生语义是"激活" ——
+// 这时候不能抢,否则按一下会既触发按钮又进全屏。
+function isActivatable(el) {
+  return el.tagName === 'BUTTON' || el.tagName === 'A' ||
+         el.tagName === 'SELECT' || el.getAttribute('role') === 'button';
+}
+
 // 监听放在【捕获阶段】(capture: true) —— 这是关键。
 // <video controls> 的原生播放/暂停、方向键快进、音量都是在它自己的 UA shadow DOM
 // 内部处理的,而 shadow DOM 里的监听器会在事件冒泡到 document 【之前】就执行。
@@ -764,6 +787,13 @@ window.addEventListener('keydown', e => {
       e.preventDefault();
       e.stopPropagation();
       seekBy(getSeekStep());
+      break;
+    case 'Enter':
+      if (isActivatable(t)) return;   // 让按钮/链接自己处理 Enter
+      e.preventDefault();
+      e.stopPropagation();
+      if (e.repeat) return;
+      toggleFullscreen();
       break;
     case 'ArrowUp':
       e.preventDefault();

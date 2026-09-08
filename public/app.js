@@ -5,6 +5,7 @@ const state = {
   startTime: 0,
   endTime: 0,
   previewMode: false,
+  segments: [], // [{ id, start, end }]
 };
 
 /* ===== dom refs ===== */
@@ -32,13 +33,17 @@ const els = {
   setEndBtn: $('setEndBtn'),
   previewBtn: $('previewBtn'),
   previewBtnText: $('previewBtnText'),
-  trimBtn: $('trimBtn'),
+  mergeBtn: $('mergeBtn'),
+  separateBtn: $('separateBtn'),
+  addSegBtn: $('addSegBtn'),
+  segmentsList: $('segmentsList'),
+  segmentsHint: $('segmentsHint'),
   progressArea: $('progressArea'),
   progressFill: $('progressFill'),
   progressText: $('progressText'),
   resultArea: $('resultArea'),
-  resultVideo: $('resultVideo'),
-  downloadLink: $('downloadLink'),
+  resultMsg: $('resultMsg'),
+  resultList: $('resultList'),
   errorArea: $('errorArea'),
   errorText: $('errorText'),
   newVideoBar: $('newVideoBar'),
@@ -140,6 +145,9 @@ function loadVideo(data) {
   state.startTime = 0;
   state.endTime = data.duration;
   state.previewMode = false;
+  state.segments = [];
+  renderSegments();
+  updateExportUI();
 
   els.video.src = data.url;
 
@@ -309,40 +317,124 @@ els.video.addEventListener('ended', () => {
   }
 });
 
-/* ===== trim ===== */
-els.trimBtn.addEventListener('click', async () => {
-  const mode = document.querySelector('input[name="mode"]:checked').value;
+/* ===== segments ===== */
+function addSegment() {
+  const dur = state.endTime - state.startTime;
+  if (dur < 0.1) {
+    alert('选区太短，无法加入切片');
+    return;
+  }
+  state.segments.push({
+    id: 'seg-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6),
+    start: state.startTime,
+    end: state.endTime,
+  });
+  renderSegments();
+  updateExportUI();
+}
 
-  els.trimBtn.disabled = true;
-  els.trimBtn.textContent = '\u5904\u7406\u4E2D...';
+function renderSegments() {
+  els.segmentsList.innerHTML = '';
+  if (state.segments.length === 0) {
+    els.segmentsHint.classList.remove('hidden');
+    return;
+  }
+  els.segmentsHint.classList.add('hidden');
+
+  state.segments.forEach((seg, idx) => {
+    const item = document.createElement('div');
+    item.className = 'segment-item';
+    const dur = seg.end - seg.start;
+    item.innerHTML =
+      '<span class="seg-index">#' + (idx + 1) + '</span>' +
+      '<span class="seg-range">' + formatTime(seg.start) + ' → ' + formatTime(seg.end) + '</span>' +
+      '<span class="seg-dur2">' + formatTime(dur) + '</span>' +
+      '<button class="seg-del" title="删除">✕</button>';
+
+    item.querySelector('.seg-del').addEventListener('click', e => {
+      e.stopPropagation();
+      state.segments = state.segments.filter(s => s.id !== seg.id);
+      renderSegments();
+      updateExportUI();
+    });
+
+    // Click row to load this segment back into the timeline selection
+    item.addEventListener('click', () => {
+      state.startTime = seg.start;
+      state.endTime = seg.end;
+      if (els.video) els.video.currentTime = seg.start;
+      updateTimeline();
+    });
+
+    els.segmentsList.appendChild(item);
+  });
+}
+
+function updateExportUI() {
+  const n = state.segments.length;
+  if (n === 0) {
+    els.mergeBtn.classList.add('hidden');
+    els.separateBtn.classList.add('hidden');
+    els.mergeBtn.disabled = true;
+    els.separateBtn.disabled = true;
+    return;
+  }
+  els.mergeBtn.disabled = false;
+  els.mergeBtn.classList.remove('hidden');
+  if (n === 1) {
+    els.mergeBtn.textContent = '\u2702\uFE0F \u5BFC\u51FA\u7247\u6BB5';
+    els.separateBtn.classList.add('hidden');
+    els.separateBtn.disabled = true;
+  } else {
+    els.mergeBtn.textContent = '\u2702\uFE0F \u5408\u5E76\u5BFC\u51FA (' + n + ')';
+    els.separateBtn.classList.remove('hidden');
+    els.separateBtn.disabled = false;
+    els.separateBtn.textContent = '\u{1F4E6} \u5BFC\u51FA ' + n + ' \u4E2A\u5355\u72EC\u7247\u6BB5';
+  }
+}
+
+els.addSegBtn.addEventListener('click', addSegment);
+
+/* ===== export ===== */
+async function startExport(type) {
+  const mode = document.querySelector('input[name="mode"]:checked').value;
+  if (state.segments.length === 0) return;
+
+  els.mergeBtn.disabled = true;
+  els.separateBtn.disabled = true;
+  els.mergeBtn.textContent = '\u5904\u7406\u4E2D...';
+  els.separateBtn.classList.add('hidden');
   els.progressArea.classList.remove('hidden');
   els.resultArea.classList.add('hidden');
   els.errorArea.classList.add('hidden');
   els.progressFill.style.width = '0%';
-  els.progressText.textContent = '\u5904\u7406\u4E2D...';
+  els.progressText.textContent = `\u6B63\u5728\u5904\u7406 ${state.segments.length} \u4E2A\u5207\u7247...`;
 
+  const endpoint = type === 'separate' ? '/api/trim-separate' : '/api/trim-multi';
   try {
-    const res = await fetch('/api/trim', {
+    const res = await fetch(endpoint, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         filename: state.file.filename,
-        start: state.startTime,
-        end: state.endTime,
-        mode
+        mode,
+        segments: state.segments.map(s => ({ start: s.start, end: s.end }))
       })
     });
     const data = await res.json();
 
     if (data.error) throw new Error(data.error);
 
-    pollStatus(data.jobId);
+    pollStatus(data.jobId, type);
   } catch (err) {
     showError(err.message);
   }
-});
+}
 
-function pollStatus(jobId) {
+els.mergeBtn.addEventListener('click', () => startExport('merge'));
+els.separateBtn.addEventListener('click', () => startExport('separate'));
+
+function pollStatus(jobId, type) {
   const poll = setInterval(async () => {
     try {
       const res = await fetch(`/api/status/${jobId}`);
@@ -354,7 +446,10 @@ function pollStatus(jobId) {
       } else if (data.status === 'done') {
         clearInterval(poll);
         els.progressFill.style.width = '100%';
-        setTimeout(() => showResult(data.url), 300);
+        setTimeout(() => {
+          if (type === 'separate') showResults(data.files);
+          else showResult(data.url, data.filename);
+        }, 300);
       } else if (data.status === 'error') {
         clearInterval(poll);
         showError(data.error);
@@ -366,26 +461,48 @@ function pollStatus(jobId) {
   }, 500);
 }
 
-function showResult(url) {
+function renderResultItems(files) {
+  els.resultList.innerHTML = '';
+  const baseName = (state.file && state.file.originalName ? state.file.originalName : 'video').replace(/\.[^.]+$/, '');
+  files.forEach((f, idx) => {
+    const ext = (f.filename.match(/(\.[^.]+)$/) || ['.mp4'])[0];
+    const dlName = baseName + '_clip' + (idx + 1) + ext;
+    const item = document.createElement('div');
+    item.className = 'result-item';
+    item.innerHTML =
+      '<video src="' + f.url + '" controls preload="metadata" class="result-video"></video>' +
+      '<a class="btn btn-success btn-block" href="' + f.url + '" download="' + dlName + '">\u2B07\uFE0F \u4E0B\u8F7D\u7247\u6BB5 ' + (idx + 1) + '</a>';
+    els.resultList.appendChild(item);
+  });
+}
+
+function showResult(url, filename) {
   els.progressArea.classList.add('hidden');
   els.resultArea.classList.remove('hidden');
-  els.resultVideo.src = url;
-  els.downloadLink.href = url;
+  els.resultMsg.textContent = '\u2705 \u5DF2\u5408\u5E76\u5BFC\u51FA\uFF01';
+  renderResultItems([{ url, filename }]);
+  els.mergeBtn.disabled = false;
+  els.separateBtn.disabled = false;
+  updateExportUI();
+}
 
-  const baseName = (state.file.originalName || 'video').replace(/\.[^.]+$/, '');
-  const ext = (url.match(/(\.[^.]+)$/) || ['.mp4'])[0];
-  els.downloadLink.setAttribute('download', baseName + '_clip' + ext);
-
-  els.trimBtn.disabled = false;
-  els.trimBtn.textContent = '\u2702\uFE0F \u91CD\u65B0\u88C1\u526A';
+function showResults(files) {
+  els.progressArea.classList.add('hidden');
+  els.resultArea.classList.remove('hidden');
+  els.resultMsg.textContent = '\u2705 \u5DF2\u5BFC\u51FA ' + files.length + ' \u4E2A\u5355\u72EC\u7247\u6BB5\uFF01';
+  renderResultItems(files);
+  els.mergeBtn.disabled = false;
+  els.separateBtn.disabled = false;
+  updateExportUI();
 }
 
 function showError(msg) {
   els.progressArea.classList.add('hidden');
   els.errorArea.classList.remove('hidden');
   els.errorText.textContent = '\u274C ' + msg;
-  els.trimBtn.disabled = false;
-  els.trimBtn.textContent = '\u2702\uFE0F \u5F00\u59CB\u88C1\u526A';
+  els.mergeBtn.disabled = false;
+  els.separateBtn.disabled = false;
+  updateExportUI();
 }
 
 /* ===== new video ===== */
@@ -395,6 +512,9 @@ els.newVideoBtn.addEventListener('click', () => {
   state.startTime = 0;
   state.endTime = 0;
   state.previewMode = false;
+  state.segments = [];
+  renderSegments();
+  updateExportUI();
 
   els.video.pause();
   els.video.removeAttribute('src');
@@ -434,3 +554,4 @@ document.addEventListener('keydown', e => {
 
 /* ===== init ===== */
 setupUpload();
+updateExportUI();

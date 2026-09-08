@@ -182,7 +182,7 @@ app.post('/api/trim', (req, res) => {
     return res.status(404).json({ error: '源视频不存在，请重新上传' });
   }
 
-  const ext = mode === 'precise' ? '.mp4' : path.extname(filename);
+  const ext = '.mp4';
   const outputName = 'trim-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8) + ext;
   const outputPath = path.join(OUTPUT_DIR, outputName);
   const duration = endSec - startSec;
@@ -192,10 +192,11 @@ app.post('/api/trim', (req, res) => {
 
   const args = mode === 'precise'
     ? ['-ss', String(startSec), '-i', inputPath, '-t', String(duration),
-       '-c:v', 'libx264', '-preset', 'fast', '-crf', '23',
+       '-c:v', 'libx264', '-preset', 'medium', '-crf', '18',
        '-c:a', 'aac', '-y', outputPath]
     : ['-ss', String(startSec), '-i', inputPath, '-t', String(duration),
-       '-c', 'copy', '-avoid_negative_ts', 'make_zero', '-y', outputPath];
+       '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '23',
+       '-c:a', 'aac', '-y', outputPath];
 
   const proc = spawn('ffmpeg', args);
   let stderrBuf = '';
@@ -242,6 +243,219 @@ app.post('/api/trim', (req, res) => {
       job.error = 'ffmpeg 启动失败，请确认已安装 ffmpeg';
     }
   });
+
+  res.json({ jobId });
+});
+
+// Build ffmpeg args for a single-segment trim.
+// Both modes re-encode (libx264/aac) so cuts are frame-accurate and segments
+// concatenate cleanly. Fast = veryfast/CRF23, Precise = medium/CRF18.
+function buildTrimArgs(input, output, start, dur, mode) {
+  const preset = mode === 'precise' ? 'medium' : 'veryfast';
+  const crf = mode === 'precise' ? '18' : '23';
+  return ['-ss', String(start), '-i', input, '-t', String(dur),
+          '-c:v', 'libx264', '-preset', preset, '-crf', crf,
+          '-c:a', 'aac', '-y', output];
+}
+
+// Run ffmpeg, resolve on exit 0, reject otherwise; report progress fraction 0..1
+function runFfmpegWithProgress(args, totalDuration, onProgress) {
+  return new Promise((resolve, reject) => {
+    const proc = spawn('ffmpeg', args);
+    let stderrBuf = '';
+    proc.stderr.on('data', data => {
+      stderrBuf += data.toString();
+      if (totalDuration > 0) {
+        const matches = stderrBuf.match(/time=(\d{2}):(\d{2}):(\d{2}\.\d{2})/g);
+        if (matches) {
+          const m = matches[matches.length - 1].match(/(\d{2}):(\d{2}):(\d{2}\.\d{2})/);
+          const processed = parseInt(m[1]) * 3600 + parseInt(m[2]) * 60 + parseFloat(m[3]);
+          onProgress(Math.min(1, processed / totalDuration));
+        }
+      }
+    });
+    proc.on('close', code => {
+      if (code === 0) resolve();
+      else reject(new Error('ffmpeg 处理失败 (code ' + code + ')'));
+    });
+    proc.on('error', err => reject(err));
+  });
+}
+
+// Multi-segment trim + concat
+app.post('/api/trim-multi', async (req, res) => {
+  const { filename, mode, segments } = req.body;
+
+  if (!filename || !mode || !Array.isArray(segments) || segments.length === 0) {
+    return res.status(400).json({ error: '参数不完整' });
+  }
+  if (mode !== 'fast' && mode !== 'precise') {
+    return res.status(400).json({ error: '裁剪模式无效' });
+  }
+  if (segments.length > 100) {
+    return res.status(400).json({ error: '切片数量过多（最多 100 个）' });
+  }
+
+  const inputPath = path.join(UPLOAD_DIR, path.basename(filename));
+  if (!fs.existsSync(inputPath)) {
+    return res.status(404).json({ error: '源视频不存在，请重新上传' });
+  }
+
+  let info;
+  try {
+    info = await getVideoInfo(inputPath);
+  } catch (e) {
+    return res.status(500).json({ error: '视频分析失败: ' + e.message });
+  }
+
+  // Validate + normalize segments
+  const cleanSegs = [];
+  for (const s of segments) {
+    const start = parseFloat(s.start);
+    const end = parseFloat(s.end);
+    if (isNaN(start) || isNaN(end) || start < 0 || end <= start) {
+      return res.status(400).json({ error: '存在无效的时间范围' });
+    }
+    if (end > info.duration + 0.2) {
+      return res.status(400).json({ error: '切片时间超出视频时长' });
+    }
+    cleanSegs.push({ start, end, dur: end - start });
+  }
+
+  const ext = '.mp4';
+  const jobId = 'job-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8);
+  const job = { status: 'processing', progress: 0 };
+  jobs.set(jobId, job);
+
+  (async () => {
+    const segPaths = [];
+    const totalSegDur = cleanSegs.reduce((a, s) => a + s.dur, 0);
+    const listPath = path.join(OUTPUT_DIR, `list-${jobId}.txt`);
+    const finalName = 'merged-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8) + ext;
+    const finalPath = path.join(OUTPUT_DIR, finalName);
+
+    const cleanup = () => {
+      segPaths.forEach(p => { try { fs.unlinkSync(p); } catch {} });
+      try { fs.unlinkSync(listPath); } catch {}
+      if (job.status === 'error') { try { fs.unlinkSync(finalPath); } catch {} }
+    };
+
+    try {
+      for (let i = 0; i < cleanSegs.length; i++) {
+        const s = cleanSegs[i];
+        const segPath = path.join(OUTPUT_DIR, `seg-${jobId}-${i}${ext}`);
+        await runFfmpegWithProgress(
+          buildTrimArgs(inputPath, segPath, s.start, s.dur, mode),
+          s.dur,
+          frac => { job.progress = Math.min(95, ((i + frac) / cleanSegs.length) * 90 + 1); }
+        );
+        if (!fs.existsSync(segPath) || fs.statSync(segPath).size === 0) {
+          throw new Error('切片 #' + (i + 1) + ' 生成失败');
+        }
+        segPaths.push(segPath);
+      }
+
+      fs.writeFileSync(listPath, segPaths.map(p => `file '${p.replace(/\\/g, '/')}'`).join('\n'));
+
+      await runFfmpegWithProgress(
+        ['-fflags', '+genpts', '-f', 'concat', '-safe', '0', '-i', listPath, '-c', 'copy', '-y', finalPath],
+        totalSegDur,
+        frac => { job.progress = Math.min(99, 95 + frac * 4); }
+      );
+
+      if (!fs.existsSync(finalPath) || fs.statSync(finalPath).size === 0) {
+        throw new Error('合并失败，请尝试切换裁剪模式');
+      }
+
+      job.status = 'done';
+      job.progress = 100;
+      job.url = `/outputs/${finalName}`;
+      job.filename = finalName;
+    } catch (err) {
+      job.status = 'error';
+      job.error = err.message || '处理失败';
+    } finally {
+      cleanup();
+      setTimeout(() => jobs.delete(jobId), 5 * 60 * 1000);
+    }
+  })();
+
+  res.json({ jobId });
+});
+
+// Multi-segment trim, export each segment as a separate file
+app.post('/api/trim-separate', async (req, res) => {
+  const { filename, mode, segments } = req.body;
+
+  if (!filename || !mode || !Array.isArray(segments) || segments.length === 0) {
+    return res.status(400).json({ error: '参数不完整' });
+  }
+  if (mode !== 'fast' && mode !== 'precise') {
+    return res.status(400).json({ error: '裁剪模式无效' });
+  }
+  if (segments.length > 100) {
+    return res.status(400).json({ error: '切片数量过多（最多 100 个）' });
+  }
+
+  const inputPath = path.join(UPLOAD_DIR, path.basename(filename));
+  if (!fs.existsSync(inputPath)) {
+    return res.status(404).json({ error: '源视频不存在，请重新上传' });
+  }
+
+  let info;
+  try {
+    info = await getVideoInfo(inputPath);
+  } catch (e) {
+    return res.status(500).json({ error: '视频分析失败: ' + e.message });
+  }
+
+  const cleanSegs = [];
+  for (const s of segments) {
+    const start = parseFloat(s.start);
+    const end = parseFloat(s.end);
+    if (isNaN(start) || isNaN(end) || start < 0 || end <= start) {
+      return res.status(400).json({ error: '存在无效的时间范围' });
+    }
+    if (end > info.duration + 0.2) {
+      return res.status(400).json({ error: '切片时间超出视频时长' });
+    }
+    cleanSegs.push({ start, end, dur: end - start });
+  }
+
+  const ext = '.mp4';
+  const jobId = 'job-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8);
+  const job = { status: 'processing', progress: 0 };
+  jobs.set(jobId, job);
+
+  (async () => {
+    const outFiles = [];
+    const total = cleanSegs.length;
+    try {
+      for (let i = 0; i < total; i++) {
+        const s = cleanSegs[i];
+        const outName = 'clip-' + jobId + '-' + i + ext;
+        const outPath = path.join(OUTPUT_DIR, outName);
+        await runFfmpegWithProgress(
+          buildTrimArgs(inputPath, outPath, s.start, s.dur, mode),
+          s.dur,
+          frac => { job.progress = Math.min(99, ((i + frac) / total) * 100); }
+        );
+        if (!fs.existsSync(outPath) || fs.statSync(outPath).size === 0) {
+          throw new Error('片段 #' + (i + 1) + ' 生成失败');
+        }
+        outFiles.push({ url: '/outputs/' + outName, filename: outName });
+      }
+      job.status = 'done';
+      job.progress = 100;
+      job.files = outFiles;
+    } catch (err) {
+      job.status = 'error';
+      job.error = err.message || '处理失败';
+      outFiles.forEach(f => { try { fs.unlinkSync(path.join(OUTPUT_DIR, f.filename)); } catch {} });
+    } finally {
+      setTimeout(() => jobs.delete(jobId), 5 * 60 * 1000);
+    }
+  })();
 
   res.json({ jobId });
 });

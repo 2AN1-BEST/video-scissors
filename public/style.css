@@ -501,6 +501,18 @@ body {
   border-radius: var(--radius-sm);
 }
 
+.result-all {
+  background: var(--primary-dim);
+  border-color: var(--primary);
+}
+
+.result-all-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--primary);
+  text-align: center;
+}
+
 /* ===== error ===== */
 .error-area {
   padding: 16px 20px;

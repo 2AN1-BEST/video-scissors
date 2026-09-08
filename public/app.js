@@ -417,6 +417,7 @@ async function startExport(type) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         filename: state.file.filename,
+        originalName: state.file.originalName,
         mode,
         segments: state.segments.map(s => ({ start: s.start, end: s.end }))
       })
@@ -447,7 +448,7 @@ function pollStatus(jobId, type) {
         clearInterval(poll);
         els.progressFill.style.width = '100%';
         setTimeout(() => {
-          if (type === 'separate') showResults(data.files);
+          if (type === 'separate') showResults(data.files, data.zipUrl, data.zipName);
           else showResult(data.url, data.filename);
         }, 300);
       } else if (data.status === 'error') {
@@ -461,9 +462,18 @@ function pollStatus(jobId, type) {
   }, 500);
 }
 
-function renderResultItems(files) {
+function renderResultItems(files, zipUrl, zipName) {
   els.resultList.innerHTML = '';
   const baseName = (state.file && state.file.originalName ? state.file.originalName : 'video').replace(/\.[^.]+$/, '');
+  // "Download all" (ZIP) button — only when there are multiple clips
+  if (zipUrl && files.length > 1) {
+    const allItem = document.createElement('div');
+    allItem.className = 'result-item result-all';
+    allItem.innerHTML =
+      '<span class="result-all-label">\u{1F4E6} 一次性下载全部 ' + files.length + ' 个片段（ZIP）</span>' +
+      '<a class="btn btn-primary btn-block" href="' + zipUrl + '" download="' + (zipName || (baseName + '_clips.zip')) + '">\u{1F4E5} 下载全部 (ZIP)</a>';
+    els.resultList.appendChild(allItem);
+  }
   files.forEach((f, idx) => {
     const ext = (f.filename.match(/(\.[^.]+)$/) || ['.mp4'])[0];
     const dlName = baseName + '_clip' + (idx + 1) + ext;
@@ -486,11 +496,11 @@ function showResult(url, filename) {
   updateExportUI();
 }
 
-function showResults(files) {
+function showResults(files, zipUrl, zipName) {
   els.progressArea.classList.add('hidden');
   els.resultArea.classList.remove('hidden');
   els.resultMsg.textContent = '\u2705 \u5DF2\u5BFC\u51FA ' + files.length + ' \u4E2A\u5355\u72EC\u7247\u6BB5\uFF01';
-  renderResultItems(files);
+  renderResultItems(files, zipUrl, zipName);
   els.mergeBtn.disabled = false;
   els.separateBtn.disabled = false;
   updateExportUI();

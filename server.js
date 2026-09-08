@@ -3,6 +3,7 @@ const multer = require('multer');
 const { execFile, spawn } = require('child_process');
 const path = require('path');
 const fs = require('fs');
+const archiver = require('archiver');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -458,6 +459,11 @@ app.post('/api/trim-separate', async (req, res) => {
   const job = { status: 'processing', progress: 0 };
   jobs.set(jobId, job);
 
+  // Friendly clip name prefix for the ZIP (falls back to the stored filename).
+  const baseName = (req.body.originalName
+    ? String(req.body.originalName).replace(/\.[^.]+$/, '')
+    : path.basename(filename, ext)) || 'video';
+
   (async () => {
     const outFiles = [];
     const total = cleanSegs.length;
@@ -480,6 +486,27 @@ app.post('/api/trim-separate', async (req, res) => {
         }
         outFiles.push({ url: '/outputs/' + outName, filename: outName });
       }
+
+      // For multiple clips, also bundle them into one ZIP so the user can download all
+      // at once. Videos are already compressed, so store (level 0) to avoid wasting CPU.
+      if (total > 1) {
+        const zipName = 'clips-' + jobId + '.zip';
+        const zipPath = path.join(OUTPUT_DIR, zipName);
+        await new Promise((resolve, reject) => {
+          const output = fs.createWriteStream(zipPath);
+          const archive = new archiver.ZipArchive({ zlib: { level: 0 } });
+          output.on('close', resolve);
+          archive.on('error', reject);
+          archive.pipe(output);
+          outFiles.forEach((f, i) => {
+            archive.file(path.join(OUTPUT_DIR, f.filename), { name: baseName + '_clip' + (i + 1) + ext });
+          });
+          archive.finalize();
+        });
+        job.zipUrl = '/outputs/' + zipName;
+        job.zipName = zipName;
+      }
+
       job.status = 'done';
       job.progress = 100;
       job.files = outFiles;
@@ -487,6 +514,7 @@ app.post('/api/trim-separate', async (req, res) => {
       job.status = 'error';
       job.error = err.message || '处理失败';
       outFiles.forEach(f => { try { fs.unlinkSync(path.join(OUTPUT_DIR, f.filename)); } catch {} });
+      if (job.zipName) { try { fs.unlinkSync(path.join(OUTPUT_DIR, job.zipName)); } catch {} }
     } finally {
       setTimeout(() => jobs.delete(jobId), 5 * 60 * 1000);
     }

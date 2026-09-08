@@ -42,7 +42,11 @@
           </div>
           <div class="seek-step">
             <label for="seekStepInput" class="seek-label">←/→ 步进</label>
-            <input type="number" id="seekStepInput" class="seek-input" value="3" min="1" max="600" step="1" inputmode="numeric" pattern="[1-9][0-9]*" spellcheck="false">
+            <div class="stepper">
+              <button type="button" class="stepper-btn" data-delta="-1" tabindex="-1" aria-label="减少步进">−</button>
+              <input type="number" id="seekStepInput" class="seek-input stepper-input" value="3" min="1" max="600" step="1" inputmode="numeric" pattern="[1-9][0-9]*" spellcheck="false">
+              <button type="button" class="stepper-btn" data-delta="1" tabindex="-1" aria-label="增加步进">+</button>
+            </div>
             <span class="seek-unit">秒</span>
             <span id="currentTimeLabel" class="seek-curtime">00:00.00</span>
             <span class="seek-hint">按 ← / → 快进/快退</span>

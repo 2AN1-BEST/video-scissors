@@ -562,6 +562,20 @@ els.seekStepInput.addEventListener('keydown', e => {
   if (e.key === 'Enter') { e.preventDefault(); sanitizeSeekStep(); els.seekStepInput.blur(); }
 });
 
+/* ===== custom stepper buttons (− / +) ===== */
+// Bump the step value by `delta` (±1), clamp to [1, 600], then release focus so
+// Space / ←→ keyboard shortcuts work again.
+function adjustStep(delta) {
+  let n = parseInt(els.seekStepInput.value, 10);
+  if (isNaN(n)) n = 3;
+  n = Math.max(1, Math.min(600, n + delta));
+  els.seekStepInput.value = String(n);
+  els.seekStepInput.blur();
+}
+document.querySelectorAll('.stepper-btn').forEach(btn => {
+  btn.addEventListener('click', () => adjustStep(parseInt(btn.dataset.delta, 10)));
+});
+
 // On blur, restore a sane value if the field was left empty / out of range.
 els.seekStepInput.addEventListener('blur', () => {
   let n = parseInt(els.seekStepInput.value, 10);

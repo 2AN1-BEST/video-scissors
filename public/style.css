@@ -209,6 +209,55 @@ body {
   background: var(--bg-panel);
 }
 
+/* Hide the native number-input spinner buttons (we render our own). */
+.seek-input::-webkit-inner-spin-button,
+.seek-input::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  appearance: none;
+  margin: 0;
+}
+.seek-input { -moz-appearance: textfield; }   /* Firefox */
+
+/* Custom stepper: wraps the input with − / + buttons in a single pill. */
+.stepper {
+  display: inline-flex;
+  align-items: stretch;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  transition: border-color var(--transition);
+}
+.stepper:focus-within { border-color: var(--primary); }
+
+.stepper-input {
+  width: 64px;
+  border: none;
+  background: transparent;
+  border-radius: 0;
+  text-align: center;
+  padding-left: 0;
+  padding-right: 0;
+}
+.stepper-input:focus { background: var(--bg-panel); }
+
+.stepper-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  width: 32px;
+  font-size: 16px;
+  font-weight: 700;
+  cursor: pointer;
+  font-family: inherit;
+  line-height: 1;
+  transition: all 0.15s;
+  user-select: none;
+}
+.stepper-btn:hover { background: var(--primary-dim); color: var(--primary); }
+.stepper-btn:active { background: var(--primary); color: #fff; }
+.stepper-btn:focus-visible { outline: 2px solid var(--primary); outline-offset: -2px; }
+
 .seek-unit {
   font-size: 13px;
   color: var(--text-secondary);

@@ -1,44 +1,65 @@
 <!DOCTYPE html>
-<html lang="zh-CN" data-page-node-id="In32ag6O7HGkZACPsJAJ7M">
-<head data-page-node-id="WKDj8arFLEaZIDMdABmzNH">
-  <meta charset="UTF-8" data-page-node-id="o4DRPmLUSAYVKGwBQAYW2F">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" data-page-node-id="YyviQsRhPopOIFfc0jCiI7">
-  <title>Video Scissors - 可视化视频裁剪</title>
-  <link rel="stylesheet" href="/public/style.css" data-page-node-id="HoNUo2jQMZR6vuaeQvqBBp">
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Video Scissors — 可视化视频裁剪</title>
+
+  <!-- 字体：Bebas Neue（展示）/ IBM Plex Sans（正文）/ IBM Plex Mono（数字） -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet"
+        href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+  <link rel="stylesheet" href="/public/style.css">
 </head>
-<body data-page-node-id="fzCfkgU4KlTv281XOnUMxn">
-  <div class="app" data-page-node-id="1YEcS9QeHLXSdIZEx7hBCn">
+<body>
+  <div class="app">
+    <!-- 胶片区：贯穿全站的齿孔母题 -->
+    <div class="film-rail" aria-hidden="true"></div>
+
     <!-- Header -->
-    <header class="app-header" data-page-node-id="NoJwEkzxHhZ3yNt145atLL">
-      <div class="logo" data-page-node-id="B0J2PnMZxmBOkOAL2xSGk4">
-        <span class="logo-icon" data-page-node-id="RTxYSYYhGegRVFt0UugMA8">✂️</span>
-        <span class="logo-text" data-page-node-id="vnvqfMZ9oZB06BmIMJBlcE">Video Scissors</span>
+    <header class="app-header">
+      <div class="logo">
+        <span class="logo-icon">✂️</span>
+        <span class="logo-text">Video Scissors</span>
       </div>
-      <span class="tagline" data-page-node-id="bFbnrbXft83I8iNKKBefbT">可视化视频裁剪工具</span>
+      <span class="tagline">可视化视频裁剪 · 全程本地处理</span>
     </header>
 
-    <main class="app-main" data-page-node-id="OLSO4d1TUeeuqWs0cA1LB9">
+    <main class="app-main">
       <!-- Upload Zone -->
-      <div id="uploadZone" class="upload-zone" data-page-node-id="bn0qd9YJ1P1oJXLKJFt18Q">
-        <div class="upload-icon" data-page-node-id="csMnXQX4FhnR3rujHNbCnq">📹</div>
-        <h2 class="upload-title" data-page-node-id="K10FYJIUA6tJyqVhNsXFWz">拖拽视频文件到此处</h2>
-        <p class="upload-subtitle" data-page-node-id="K0Oda3NPaFK9VDV2ssGG75">或点击选择文件</p>
-        <p class="upload-formats" data-page-node-id="wBwVr1H4vDKkud4UBGm0N6">支持 MP4 · AVI · MOV · MKV · WebM · FLV · WMV</p>
+      <div id="uploadZone" class="upload-zone">
+        <div class="film-rail" aria-hidden="true"></div>
+        <div class="uz-body">
+          <div class="uz-left">
+            <span class="uz-kicker">Step 01 / 导入素材</span>
+            <h2 class="uz-title">拖入视频<br><em>开始裁剪</em></h2>
+            <p class="uz-sub">或点击选择文件 —— 文件不会离开本机，处理完即可下载。</p>
+            <ul class="uz-formats">
+              <li>MP4</li><li>MOV</li><li>MKV</li><li>AVI</li><li>WebM</li><li>FLV</li><li>WMV</li>
+            </ul>
+          </div>
+          <div class="uz-right">
+            <div class="uz-drop-mark">＋</div>
+          </div>
+        </div>
+        <div class="film-rail" aria-hidden="true"></div>
       </div>
       <!-- kept outside #uploadZone so innerHTML swaps never detach/destroy it -->
-      <input type="file" id="fileInput" accept="video/*" hidden data-page-node-id="2ERrsDOAeDo0nudSZGJLu4">
+      <input type="file" id="fileInput" accept="video/*" hidden>
 
       <!-- Editor -->
-      <div id="editor" class="editor hidden" data-page-node-id="mbs55Mir0uPCNoDKpQTQxe">
+      <div id="editor" class="editor hidden">
         <!-- Video Player -->
-        <div class="video-panel" data-page-node-id="9c1Tpzr7Hq4Cuq4ndKI9PO">
-          <div class="video-wrapper" data-page-node-id="cJfTuyJsq2lzZaHbEmIEx9">
-            <video id="videoPlayer" controls preload="metadata" playsinline data-page-node-id="3K3C3TiqQTt5PunOqYkWDA"></video>
-            <div id="videoWarning" class="video-warning hidden" data-page-node-id="5MxtR14HyoAuTnzG1nK8Rt">⚠️ 浏览器无法预览此格式，但仍可裁剪</div>
+        <div class="video-panel">
+          <div class="panel-label">监视窗 / Monitor</div>
+          <div class="video-wrapper">
+            <video id="videoPlayer" controls preload="metadata" playsinline></video>
+            <div id="videoWarning" class="video-warning hidden">⚠️ 浏览器无法预览此格式，但仍可裁剪</div>
           </div>
-          <div class="video-info" data-page-node-id="pOaM7PfuVVPcU82s9Xjdob">
-            <span id="videoName" class="video-name" data-page-node-id="61YmfHoG7qdqVz5JqpJxtr"></span>
-            <span id="videoMeta" class="video-meta" data-page-node-id="FmXxXaewcRNhh81CfYvHsB"></span>
+          <div class="video-info">
+            <span id="videoName" class="video-name"></span>
+            <span id="videoMeta" class="video-meta"></span>
           </div>
           <div class="seek-step">
             <label for="seekStepInput" class="seek-label">←/→ 步进</label>
@@ -49,88 +70,94 @@
             </div>
             <span class="seek-unit">秒</span>
             <span id="currentTimeLabel" class="seek-curtime">00:00.00</span>
+            <span id="volumeLabel" class="seek-vol">🔊 100%</span>
             <span class="seek-hint">← → 快进/快退 · ↑ ↓ 音量 ±10%</span>
           </div>
         </div>
 
-        <!-- Timeline -->
-        <div class="timeline-section" data-page-node-id="PDT0VUtPpMxvCcwGrvkBcA">
-          <div class="timeline" id="timeline" data-page-node-id="VFjwj9fcu4WOHJYFXKIcoM">
-            <div class="timeline-thumbs" id="thumbs" data-page-node-id="mghBmWXudhBVwozobZLjbl"></div>
-            <div class="timeline-dim" data-page-node-id="UFffdCFccQkgYeXcqZsliK"></div>
-            <div class="timeline-selection" id="selection" data-page-node-id="rfByFzxUkx7sa39feEvnnu"></div>
-            <div class="timeline-handle" id="startHandle" data-page-node-id="O3SWFPy7Dnqh9HdkWI38xD">
-              <div class="handle-grip" data-page-node-id="rpTlZS1CSX3RAHO7Lg0BWV"></div>
-            </div>
-            <div class="timeline-handle" id="endHandle" data-page-node-id="gGLMXkl2SpnBxkT7dFzAAk">
-              <div class="handle-grip" data-page-node-id="YfEu1W9EInopFmBQGpFV45"></div>
-            </div>
-            <div class="timeline-playhead" id="playhead" data-page-node-id="LuBPVcE0x1T48JzL2dCkWF"></div>
+        <!-- Timeline —— 一条带齿孔的胶片 -->
+        <div class="timeline-section">
+          <div class="panel-label">时间轴 / Timeline</div>
+          <div class="film-rail" aria-hidden="true"></div>
+          <div class="timeline" id="timeline">
+            <div class="timeline-thumbs" id="thumbs"></div>
+            <div class="timeline-dim"></div>
+            <div class="timeline-selection" id="selection"></div>
+            <div class="timeline-handle" id="startHandle"><div class="handle-grip"></div></div>
+            <div class="timeline-handle" id="endHandle"><div class="handle-grip"></div></div>
+            <div class="timeline-playhead" id="playhead"></div>
           </div>
-          <div class="time-labels" data-page-node-id="JkHzCAuDR1pOLh0mr8bcqp">
-            <span id="startTimeLabel" class="time-label" data-page-node-id="zlAqyFNoKjUKRPkqeMFgfA">00:00.00</span>
-            <span id="segDurationLabel" class="time-label seg-dur" data-page-node-id="ZGBy4QAapYq8x1w88xR0eU">片段 00:00.00</span>
-            <span id="totalTimeLabel" class="time-label" data-page-node-id="teIAfhHb64vEkW6pf7PrZ9">00:00.00</span>
+          <div class="film-rail" aria-hidden="true"></div>
+          <div class="time-labels">
+            <span id="startTimeLabel" class="time-label">00:00.00</span>
+            <span id="segDurationLabel" class="time-label seg-dur">片段 00:00.00</span>
+            <span id="totalTimeLabel" class="time-label">00:00.00</span>
           </div>
         </div>
 
         <!-- Quick Actions -->
-        <div class="quick-actions" data-page-node-id="Z883jfDoHqNhlTePjiT1pR">
-          <button id="setStartBtn" class="btn btn-ghost" data-page-node-id="3NkHJxbYfnuLZWJOnL32Ik">
-            <span class="btn-bracket" data-page-node-id="4hglBaU4MmMGD4uiWZMRFx">[</span>
-            <span data-page-node-id="BrFUNWPn6sMlfBzaBwJsQH">设为起点</span>
+        <div class="quick-actions">
+          <button id="setStartBtn" class="btn btn-ghost">
+            <span class="btn-bracket">[</span>
+            <span>设为起点</span>
           </button>
-          <button id="previewBtn" class="btn btn-ghost" data-page-node-id="CpnIm0LiSSKQ5PzEfI1RyQ">
-            <span data-page-node-id="mPVVfXuxvCt9oPABERUMrV">▶</span>
-            <span id="previewBtnText" data-page-node-id="iG6mTEPq7JU029WSyKuyO2">预览片段</span>
+          <button id="previewBtn" class="btn btn-ghost">
+            <span>▶</span>
+            <span id="previewBtnText">预览片段</span>
           </button>
-          <button id="setEndBtn" class="btn btn-ghost" data-page-node-id="eWR4wrLCrwjFWT4YVY14UH">
-            <span data-page-node-id="lEFAnrDxGMjQkTCwM4btUT">设为终点</span>
-            <span class="btn-bracket" data-page-node-id="jEmFeMBpMq1aUhOfvMtlFV">]</span>
+          <button id="setEndBtn" class="btn btn-ghost">
+            <span>设为终点</span>
+            <span class="btn-bracket">]</span>
           </button>
         </div>
 
         <!-- Time Inputs -->
-        <div class="time-inputs" data-page-node-id="qEYDRtv9uTs1o2Y1YdvGud">
-          <div class="time-field" data-page-node-id="ZsU1Z0V4I70hGP3Z8j12Ui">
-            <label for="startInput" data-page-node-id="F2Y3VKCJjAKrUcreNba14F">开始时间</label>
-            <input type="text" id="startInput" class="time-input" value="00:00:00.000" spellcheck="false" data-page-node-id="Bw3NlQcDpthfrLtG7HjWAd">
+        <div class="time-inputs">
+          <div class="time-field">
+            <label for="startInput">开始时间 / In</label>
+            <input type="text" id="startInput" class="time-input" value="00:00:00.000" spellcheck="false">
           </div>
-          <div class="time-field" data-page-node-id="TRDNsDMfi7UioqBnnb1btV">
-            <label for="endInput" data-page-node-id="WXFcKpO6AzzC7p1DMQhPSQ">结束时间</label>
-            <input type="text" id="endInput" class="time-input" value="00:00:00.000" spellcheck="false" data-page-node-id="bn2ICMZR9qt3653el3ZQvk">
+          <div class="time-field">
+            <label for="endInput">结束时间 / Out</label>
+            <input type="text" id="endInput" class="time-input" value="00:00:00.000" spellcheck="false">
           </div>
         </div>
 
         <!-- Add Segment -->
-        <div class="segment-add" data-page-node-id="SxN8IMEXDusX06PDuf6TWV">
-          <button id="addSegBtn" class="btn btn-ghost btn-block" data-page-node-id="ySO4hPcjECW8xrFPFEl3e4">➕ 把当前选区加入切片</button>
+        <div class="segment-add">
+          <button id="addSegBtn" class="btn btn-ghost btn-block">➕ 把当前选区加入切片</button>
         </div>
 
         <!-- Segment List -->
-        <div id="segmentsList" class="segments-list" data-page-node-id="R2gSLpeFwpXLJGOqk19JOd"></div>
-        <p id="segmentsHint" class="segments-hint" data-page-node-id="97Wa2lPMnaswtsMgXjTZyH">还没有切片。拖动时间轴选择起止点，点上方按钮加入；可加多个，最后一键合并导出。</p>
+        <div id="segmentsList" class="segments-list"></div>
+        <p id="segmentsHint" class="segments-hint">还没有切片。拖动时间轴选择起止点，点上方按钮加入；可加多个，最后一键合并导出。</p>
 
         <!-- Trim Mode -->
-        <div class="trim-mode" data-page-node-id="GyC7urQuMgQSDthXx6tAX5">
-          <label class="mode-card" data-page-node-id="3uiAiyEt0bMiO6mgSsyeDq">
-            <input type="radio" name="mode" value="original" checked data-page-node-id="8UwykSftke5ecJMTgXOBIO">
-            <span class="mode-icon" data-page-node-id="A1XbrOXSVA9gnMyajPJU72">🎬</span>
-            <span class="mode-title" data-page-node-id="UucSr7eGDyinxzvlJZghlm">原画质</span>
-            <span class="mode-desc" data-page-node-id="8bMKvgC9ZuGNaLWMsDmBAW">原画质·单段无损·体积接近原片</span>
-          </label>
-          <label class="mode-card" data-page-node-id="n19WUiJFahOdxYzDwjwAHH">
-            <input type="radio" name="mode" value="fast" data-page-node-id="vvUPudsu7VpEE8HTwWr6BH">
-            <span class="mode-icon" data-page-node-id="8veQCm9uoNwc4fOGxEMX9b">⚡</span>
-            <span class="mode-title" data-page-node-id="Yk0EALcMFXuciHqHHk5OJr">快速模式</span>
-            <span class="mode-desc" data-page-node-id="Bz1a1NpKHYSBxVNYbnCTsY">快速转码，秒级完成</span>
-          </label>
-          <label class="mode-card" data-page-node-id="9cJ2KpLmQxYz3wRtUvWnBb">
-            <input type="radio" name="mode" value="precise" data-page-node-id="wZ4mNqRs7TuVbXyC8dEfGh">
-            <span class="mode-icon" data-page-node-id="pL5kQrSt9UvWxYzA1bCdEf">🎯</span>
-            <span class="mode-title" data-page-node-id="qM6lRsTu0VwXyZaB2cDeFg">精确模式</span>
-            <span class="mode-desc" data-page-node-id="rN7mStUv1WxYzAbC3dEfGh">高质量转码，画质优先</span>
-          </label>
+        <div class="mode-section">
+          <div class="panel-label">输出模式 / Encode</div>
+          <div class="trim-mode">
+            <label class="mode-card">
+              <input type="radio" name="mode" value="original" checked>
+              <span class="mode-idx">01</span>
+              <span class="mode-icon">🎬</span>
+              <span class="mode-title">原画质</span>
+              <span class="mode-desc">单段无损 · 体积接近原片</span>
+            </label>
+            <label class="mode-card">
+              <input type="radio" name="mode" value="fast">
+              <span class="mode-idx">02</span>
+              <span class="mode-icon">⚡</span>
+              <span class="mode-title">快速模式</span>
+              <span class="mode-desc">快速转码，秒级完成</span>
+            </label>
+            <label class="mode-card">
+              <input type="radio" name="mode" value="precise">
+              <span class="mode-idx">03</span>
+              <span class="mode-icon">🎯</span>
+              <span class="mode-title">精确模式</span>
+              <span class="mode-desc">高质量转码，画质优先</span>
+            </label>
+          </div>
         </div>
 
         <!-- Export Actions -->
@@ -140,30 +167,39 @@
         </div>
 
         <!-- Progress -->
-        <div id="progressArea" class="progress-area hidden" data-page-node-id="BwcABTef8pNqILBs2RXzNL">
-          <div class="progress-bar" data-page-node-id="8fxviti9Qixob5tHQkGAW6">
-            <div class="progress-fill" id="progressFill" data-page-node-id="jBMNfB2KMkhATZDyBXMwoS"></div>
-          </div>
-          <span id="progressText" class="progress-text" data-page-node-id="GXcp2g1PSwbX4ZyG0RKGRq">处理中...</span>
+        <div id="progressArea" class="progress-area hidden">
+          <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+          <span id="progressText" class="progress-text">处理中...</span>
         </div>
 
         <!-- Result -->
-        <div id="resultArea" class="result-area hidden" data-page-node-id="fybK21Qo6lNUiiASBaMtb5">
-          <p id="resultMsg" class="result-msg" data-page-node-id="Ac5GdTuiiZlZ7FaqdPly92">✅ 完成！</p>
+        <div id="resultArea" class="result-area hidden">
+          <p id="resultMsg" class="result-msg">✅ 完成！</p>
           <div id="resultList" class="result-list"></div>
         </div>
 
         <!-- Error -->
-        <div id="errorArea" class="error-area hidden" data-page-node-id="5xbiX4V2GlTa5UNVGahFxY">
-          <p id="errorText" class="error-msg" data-page-node-id="Jxq3HRbHhknnluzw8f3yG0"></p>
+        <div id="errorArea" class="error-area hidden">
+          <p id="errorText" class="error-msg"></p>
         </div>
       </div>
 
       <!-- New Video -->
-      <div id="newVideoBar" class="new-video-bar hidden" data-page-node-id="ImrPb3t3CiwGKHS2UtuHt5">
-        <button id="newVideoBtn" class="btn btn-ghost" data-page-node-id="YPJQV5iCtyi1VHA5MTvjyG">选择新视频</button>
+      <div id="newVideoBar" class="new-video-bar hidden">
+        <button id="newVideoBtn" class="btn btn-ghost">选择新视频</button>
       </div>
     </main>
+
+    <!-- Footer：快捷键图例 -->
+    <footer class="app-footer">
+      <span class="kbd-legend">
+        <kbd>Space</kbd> 播放/暂停
+        <kbd>←</kbd><kbd>→</kbd> 步进
+        <kbd>↑</kbd><kbd>↓</kbd> 音量
+        <kbd>[</kbd><kbd>]</kbd> 起点/终点
+      </span>
+      <span class="footer-mark">Video Scissors · Local</span>
+    </footer>
   </div>
 
   <script src="/public/app.js"></script>

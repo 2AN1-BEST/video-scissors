@@ -20,6 +20,7 @@ const els = {
   videoMeta: $('videoMeta'),
   seekStepInput: $('seekStepInput'),
   currentTimeLabel: $('currentTimeLabel'),
+  volumeLabel: $('volumeLabel'),
   timeline: $('timeline'),
   thumbs: $('thumbs'),
   selection: $('selection'),
@@ -109,7 +110,15 @@ function setupUpload() {
 
 async function handleFile(file) {
   els.uploadZone.classList.add('uploading');
-  els.uploadZone.innerHTML = '<div class="upload-spinner"></div><p>\u6B63\u5728\u5904\u7406\u89C6\u9891...</p>';
+  // 沿用卡片外壳(保持 film-rail 齿孔条 + 居中容器)，只替换中部内容，
+  // 否则 spinner 会在左上角、卡片也会塌成一窄条。
+  els.uploadZone.innerHTML =
+    '<div class="film-rail" aria-hidden="true"></div>' +
+    '<div class="uz-body uz-body--center">' +
+      '<div class="upload-spinner"></div>' +
+      '<p class="upload-status">正在处理视频…</p>' +
+    '</div>' +
+    '<div class="film-rail" aria-hidden="true"></div>';
 
   const formData = new FormData();
   formData.append('video', file);
@@ -131,13 +140,25 @@ async function handleFile(file) {
   }
 }
 
+// 必须与 index.html 中 #uploadZone 的初始结构保持一致 —— 该区域会被整体覆写。
 function resetUploadZone() {
   els.uploadZone.classList.remove('uploading', 'dragover');
   els.uploadZone.innerHTML =
-    '<div class="upload-icon">\u{1F4F9}</div>' +
-    '<h2 class="upload-title">\u62D6\u62FD\u89C6\u9891\u6587\u4EF6\u5230\u6B64\u5904</h2>' +
-    '<p class="upload-subtitle">\u6216\u70B9\u51FB\u9009\u62E9\u6587\u4EF6</p>' +
-    '<p class="upload-formats">\u652F\u6301 MP4 \u00B7 AVI \u00B7 MOV \u00B7 MKV \u00B7 WebM \u00B7 FLV \u00B7 WMV</p>';
+    '<div class="film-rail" aria-hidden="true"></div>' +
+    '<div class="uz-body">' +
+      '<div class="uz-left">' +
+        '<span class="uz-kicker">Step 01 / 导入素材</span>' +
+        '<h2 class="uz-title">拖入视频<br><em>开始裁剪</em></h2>' +
+        '<p class="uz-sub">或点击选择文件 —— 文件不会离开本机，处理完即可下载。</p>' +
+        '<ul class="uz-formats">' +
+          '<li>MP4</li><li>MOV</li><li>MKV</li><li>AVI</li><li>WebM</li><li>FLV</li><li>WMV</li>' +
+        '</ul>' +
+      '</div>' +
+      '<div class="uz-right">' +
+        '<div class="uz-drop-mark">＋</div>' +
+      '</div>' +
+    '</div>' +
+    '<div class="film-rail" aria-hidden="true"></div>';
 }
 
 /* ===== video loading ===== */
@@ -629,23 +650,29 @@ els.video.addEventListener('seeked', () => {
 els.video.addEventListener('play', () => { seekTarget = null; });
 els.video.addEventListener('loadedmetadata', () => { seekTarget = null; });
 
-// The native control bar is easy to miss while using the keyboard, so mirror the
-// new volume on screen briefly, right where the eye already is.
-let volumeToast = null;
-let volumeToastTimer = null;
-function showVolumeToast(pct) {
-  if (!volumeToast) {
-    volumeToast = document.createElement('div');
-    volumeToast.className = 'volume-toast';
-    document.body.appendChild(volumeToast);
-  }
-  volumeToast.textContent = (pct > 0 ? '\u{1F50A}' : '\u{1F507}') + ' 音量 ' + pct + '%';
-  volumeToast.classList.add('show');
-  clearTimeout(volumeToastTimer);
-  volumeToastTimer = setTimeout(() => {
-    if (volumeToast) volumeToast.classList.remove('show');
-  }, 900);
+// 常驻音量读数。视频在播放时播放头本来就在动,没有这个读数就无法判断
+// ↑↓ 到底改的是音量还是进度 —— 它是唯一能自证的反馈。
+let volumeBumpTimer = null;
+function renderVolume() {
+  if (!els.volumeLabel) return;
+  const pct = Math.round(els.video.volume * 100);
+  const silent = els.video.muted || pct === 0;
+  els.volumeLabel.textContent = (silent ? '\u{1F507}' : '\u{1F50A}') + ' ' + pct + '%';
+  els.volumeLabel.classList.toggle('is-muted', silent);
 }
+
+// 换档时读数会点亮一下。
+function flashVolume() {
+  if (!els.volumeLabel) return;
+  els.volumeLabel.classList.add('is-bumped');
+  clearTimeout(volumeBumpTimer);
+  volumeBumpTimer = setTimeout(() => {
+    if (els.volumeLabel) els.volumeLabel.classList.remove('is-bumped');
+  }, 450);
+}
+
+els.video.addEventListener('volumechange', () => { renderVolume(); flashVolume(); });
+els.video.addEventListener('loadedmetadata', renderVolume);
 
 // Change playback volume by `delta` (±0.1 = ±10%), clamped to [0, 1].
 // Rounding to 2 decimals avoids float drift (0.1 + 0.2 => 0.30000000000000004).
@@ -656,18 +683,28 @@ function adjustVolume(delta) {
   els.video.volume = next;
   // Raising the volume should also un-mute, otherwise nothing is heard.
   if (next > 0 && els.video.muted) els.video.muted = false;
-  showVolumeToast(Math.round(next * 100));
 }
 
-document.addEventListener('keydown', e => {
+// 监听放在【捕获阶段】(capture: true) —— 这是关键。
+// <video controls> 的原生播放/暂停、方向键快进、音量都是在它自己的 UA shadow DOM
+// 内部处理的,而 shadow DOM 里的监听器会在事件冒泡到 document 【之前】就执行。
+// 用冒泡监听的话顺序是: 原生先切一次 → 我们再切一次 → 两次抵消,表现就是
+// "按空格没反应";方向键同理(原生 ±5s 再叠加我们的步进,所以步长也对不上)。
+// 捕获阶段从 window 往下走,我们第一个拿到事件,stopPropagation 后事件根本
+// 到不了 video 的内部处理器,原生行为就不会叠加了。
+window.addEventListener('keydown', e => {
   if (!state.file) return;
   const t = e.target;
-  const inEditable = (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA');
+  const inEditable = (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable);
 
-  // Space always toggles playback — even when the step field has focus (a number
-  // input can't usefully accept a space). Other shortcuts stay off while typing.
-  if (e.key === ' ' && (!inEditable || t === els.seekStepInput)) {
+  // 空格：除了正在输入文本,一律切换播放/暂停。
+  // 覆盖 button / radio / video 自身获得焦点的情况 —— 这些元素本来会各自吃掉空格
+  // (button 会被再次"点击"、radio 会被选中、video 会原生切换一次)。
+  if (e.key === ' ') {
+    if (inEditable && t !== els.seekStepInput) return; // 文本框里要能打空格
     e.preventDefault();
+    e.stopPropagation();
+    if (e.repeat) return;                              // 忽略长按自动重复
     if (els.video.paused) els.video.play(); else els.video.pause();
     return;
   }
@@ -675,31 +712,37 @@ document.addEventListener('keydown', e => {
 
   switch (e.key) {
     case '[':
+      e.stopPropagation();
       state.startTime = Math.max(0, Math.min(els.video.currentTime, state.endTime - 0.1));
       updateTimeline();
       break;
     case ']':
+      e.stopPropagation();
       state.endTime = Math.min(state.duration, Math.max(els.video.currentTime, state.startTime + 0.1));
       updateTimeline();
       break;
     case 'ArrowLeft':
       e.preventDefault();
+      e.stopPropagation();
       seekBy(-getSeekStep());
       break;
     case 'ArrowRight':
       e.preventDefault();
+      e.stopPropagation();
       seekBy(getSeekStep());
       break;
     case 'ArrowUp':
       e.preventDefault();
+      e.stopPropagation();
       adjustVolume(0.1);
       break;
     case 'ArrowDown':
       e.preventDefault();
+      e.stopPropagation();
       adjustVolume(-0.1);
       break;
   }
-});
+}, true);
 
 /* ===== init ===== */
 setupUpload();

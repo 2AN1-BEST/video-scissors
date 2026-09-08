@@ -127,6 +127,11 @@ app.post('/api/upload', (req, res) => {
 
     if (!req.file) return res.status(400).json({ error: '未选择文件' });
 
+  // multer 底层（busboy）把 multipart 头里的字节流按 latin1 解成 Node 字符串，
+  // 所以非 ASCII 文件名（如中文/日文/西欧字符）会出现乱码：'测试.mp4' → 'Ã\u0082Â©Â£.mp4'。
+  // 还原：把字符串重新当 latin1 字节取出，再按 UTF-8 解码。对纯 ASCII 是幂等的。
+  const originalName = Buffer.from(req.file.originalname, 'latin1').toString('utf8');
+
   const filePath = req.file.path;
   const filename = req.file.filename;
   const fileId = path.basename(filename, path.extname(filename));
@@ -143,7 +148,7 @@ app.post('/api/upload', (req, res) => {
 
     res.json({
       filename,
-      originalName: req.file.originalname,
+      originalName,
       duration: info.duration,
       width: info.width,
       height: info.height,

@@ -172,7 +172,7 @@ app.post('/api/trim', (req, res) => {
     return res.status(400).json({ error: '时间范围无效' });
   }
 
-  if (mode !== 'fast' && mode !== 'precise') {
+  if (mode !== 'fast' && mode !== 'precise' && mode !== 'original') {
     return res.status(400).json({ error: '裁剪模式无效' });
   }
 
@@ -190,13 +190,16 @@ app.post('/api/trim', (req, res) => {
   const jobId = 'job-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8);
   jobs.set(jobId, { status: 'processing', progress: 0 });
 
-  const args = mode === 'precise'
+  const args = mode === 'original'
     ? ['-ss', String(startSec), '-i', inputPath, '-t', String(duration),
-       '-c:v', 'libx264', '-preset', 'medium', '-crf', '18',
-       '-c:a', 'aac', '-y', outputPath]
-    : ['-ss', String(startSec), '-i', inputPath, '-t', String(duration),
-       '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '23',
-       '-c:a', 'aac', '-y', outputPath];
+       '-c', 'copy', '-avoid_negative_ts', 'make_zero', '-y', outputPath]
+    : (mode === 'precise'
+      ? ['-ss', String(startSec), '-i', inputPath, '-t', String(duration),
+         '-c:v', 'libx264', '-preset', 'medium', '-crf', '18',
+         '-c:a', 'aac', '-y', outputPath]
+      : ['-ss', String(startSec), '-i', inputPath, '-t', String(duration),
+         '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '23',
+         '-c:a', 'aac', '-y', outputPath]);
 
   const proc = spawn('ffmpeg', args);
   let stderrBuf = '';
@@ -248,9 +251,14 @@ app.post('/api/trim', (req, res) => {
 });
 
 // Build ffmpeg args for a single-segment trim.
-// Both modes re-encode (libx264/aac) so cuts are frame-accurate and segments
-// concatenate cleanly. Fast = veryfast/CRF23, Precise = medium/CRF18.
+// - original: stream copy (-c copy), lossless, no size increase, snaps to keyframe.
+// - fast / precise: re-encode (libx264/aac) so cuts are frame-accurate.
+//   Fast = veryfast/CRF23, Precise = medium/CRF18.
 function buildTrimArgs(input, output, start, dur, mode) {
+  if (mode === 'original') {
+    return ['-ss', String(start), '-i', input, '-t', String(dur),
+            '-c', 'copy', '-avoid_negative_ts', 'make_zero', '-y', output];
+  }
   const preset = mode === 'precise' ? 'medium' : 'veryfast';
   const crf = mode === 'precise' ? '18' : '23';
   return ['-ss', String(start), '-i', input, '-t', String(dur),
@@ -289,7 +297,7 @@ app.post('/api/trim-multi', async (req, res) => {
   if (!filename || !mode || !Array.isArray(segments) || segments.length === 0) {
     return res.status(400).json({ error: '参数不完整' });
   }
-  if (mode !== 'fast' && mode !== 'precise') {
+  if (mode !== 'fast' && mode !== 'precise' && mode !== 'original') {
     return res.status(400).json({ error: '裁剪模式无效' });
   }
   if (segments.length > 100) {
@@ -328,40 +336,63 @@ app.post('/api/trim-multi', async (req, res) => {
   jobs.set(jobId, job);
 
   (async () => {
-    const segPaths = [];
     const totalSegDur = cleanSegs.reduce((a, s) => a + s.dur, 0);
     const listPath = path.join(OUTPUT_DIR, `list-${jobId}.txt`);
     const finalName = 'merged-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8) + ext;
     const finalPath = path.join(OUTPUT_DIR, finalName);
 
     const cleanup = () => {
-      segPaths.forEach(p => { try { fs.unlinkSync(p); } catch {} });
       try { fs.unlinkSync(listPath); } catch {}
       if (job.status === 'error') { try { fs.unlinkSync(finalPath); } catch {} }
     };
 
     try {
-      for (let i = 0; i < cleanSegs.length; i++) {
-        const s = cleanSegs[i];
-        const segPath = path.join(OUTPUT_DIR, `seg-${jobId}-${i}${ext}`);
+      if (mode === 'original') {
+        // Original quality for MULTIPLE segments: a pure stream-copy concat cannot be
+        // frame-accurate (keyframe snapping drifts the duration, as verified). So we cut
+        // via the concat demuxer's inpoint/outpoint (frame-accurate) and run ONE
+        // near-original re-encode pass over the whole result — single encode, exact
+        // duration, quality ~source. (Single-segment original stays truly lossless copy.)
+        const srcForList = inputPath.replace(/\\/g, '/');
+        const listBody = cleanSegs
+          .map(s => `file '${srcForList}'\ninpoint ${s.start}\noutpoint ${s.end}`)
+          .join('\n');
+        fs.writeFileSync(listPath, listBody);
+
         await runFfmpegWithProgress(
-          buildTrimArgs(inputPath, segPath, s.start, s.dur, mode),
-          s.dur,
-          frac => { job.progress = Math.min(95, ((i + frac) / cleanSegs.length) * 90 + 1); }
+          ['-f', 'concat', '-safe', '0', '-i', listPath,
+           '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '18',
+           '-c:a', 'aac', '-y', finalPath],
+          totalSegDur,
+          frac => { job.progress = Math.min(99, frac * 99); }
         );
-        if (!fs.existsSync(segPath) || fs.statSync(segPath).size === 0) {
-          throw new Error('切片 #' + (i + 1) + ' 生成失败');
+      } else {
+        // fast / precise: re-encode each segment accurately, then lossless copy-concat.
+        const segPaths = [];
+        for (let i = 0; i < cleanSegs.length; i++) {
+          const s = cleanSegs[i];
+          const segPath = path.join(OUTPUT_DIR, `seg-${jobId}-${i}${ext}`);
+          await runFfmpegWithProgress(
+            buildTrimArgs(inputPath, segPath, s.start, s.dur, mode),
+            s.dur,
+            frac => { job.progress = Math.min(95, ((i + frac) / cleanSegs.length) * 90 + 1); }
+          );
+          if (!fs.existsSync(segPath) || fs.statSync(segPath).size === 0) {
+            throw new Error('切片 #' + (i + 1) + ' 生成失败');
+          }
+          segPaths.push(segPath);
         }
-        segPaths.push(segPath);
+
+        fs.writeFileSync(listPath, segPaths.map(p => `file '${p.replace(/\\/g, '/')}'`).join('\n'));
+
+        await runFfmpegWithProgress(
+          ['-fflags', '+genpts', '-f', 'concat', '-safe', '0', '-i', listPath, '-c', 'copy', '-y', finalPath],
+          totalSegDur,
+          frac => { job.progress = Math.min(99, 95 + frac * 4); }
+        );
+
+        segPaths.forEach(p => { try { fs.unlinkSync(p); } catch {} });
       }
-
-      fs.writeFileSync(listPath, segPaths.map(p => `file '${p.replace(/\\/g, '/')}'`).join('\n'));
-
-      await runFfmpegWithProgress(
-        ['-fflags', '+genpts', '-f', 'concat', '-safe', '0', '-i', listPath, '-c', 'copy', '-y', finalPath],
-        totalSegDur,
-        frac => { job.progress = Math.min(99, 95 + frac * 4); }
-      );
 
       if (!fs.existsSync(finalPath) || fs.statSync(finalPath).size === 0) {
         throw new Error('合并失败，请尝试切换裁剪模式');
@@ -390,7 +421,7 @@ app.post('/api/trim-separate', async (req, res) => {
   if (!filename || !mode || !Array.isArray(segments) || segments.length === 0) {
     return res.status(400).json({ error: '参数不完整' });
   }
-  if (mode !== 'fast' && mode !== 'precise') {
+  if (mode !== 'fast' && mode !== 'precise' && mode !== 'original') {
     return res.status(400).json({ error: '裁剪模式无效' });
   }
   if (segments.length > 100) {
@@ -430,13 +461,17 @@ app.post('/api/trim-separate', async (req, res) => {
   (async () => {
     const outFiles = [];
     const total = cleanSegs.length;
+    // Separate export makes each segment a standalone file. A pure stream-copy cut would
+    // snap to the previous keyframe and produce overlapping/wrong-length clips, so for
+    // original mode we re-encode each clip once at near-original quality (CRF 18).
+    const segMode = (mode === 'original') ? 'precise' : mode;
     try {
       for (let i = 0; i < total; i++) {
         const s = cleanSegs[i];
         const outName = 'clip-' + jobId + '-' + i + ext;
         const outPath = path.join(OUTPUT_DIR, outName);
         await runFfmpegWithProgress(
-          buildTrimArgs(inputPath, outPath, s.start, s.dur, mode),
+          buildTrimArgs(inputPath, outPath, s.start, s.dur, segMode),
           s.dur,
           frac => { job.progress = Math.min(99, ((i + frac) / total) * 100); }
         );

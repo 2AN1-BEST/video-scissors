@@ -34,7 +34,7 @@
           <div class="uz-left">
             <span class="uz-kicker">Step 01 / 导入素材</span>
             <h2 class="uz-title">拖入视频<br><em>开始裁剪</em></h2>
-            <p class="uz-sub">或点击选择文件 —— 文件不会离开本机，处理完即可下载。</p>
+            <p class="uz-sub">或点击选择文件</p>
             <ul class="uz-formats">
               <li>MP4</li><li>MOV</li><li>MKV</li><li>AVI</li><li>WebM</li><li>FLV</li><li>WMV</li>
             </ul>
@@ -70,7 +70,7 @@
             </div>
             <span class="seek-unit">秒</span>
             <span id="currentTimeLabel" class="seek-curtime">00:00.00</span>
-            <span id="volumeLabel" class="seek-vol">🔊 100%</span>
+            <span id="volumeLabel" class="seek-vol">🔊 50%</span>
             <span class="seek-hint">← → 快进/快退 · ↑ ↓ 音量 ±10%</span>
           </div>
         </div>
@@ -185,12 +185,9 @@
       </div>
 
       <!-- New Video -->
-      <div id="newVideoBar" class="new-video-bar hidden">
-        <button id="newVideoBtn" class="btn btn-ghost">选择新视频</button>
-      </div>
     </main>
 
-    <!-- Footer：快捷键图例 -->
+    <!-- Footer：快捷键图例 + 隐私承诺 -->
     <footer class="app-footer">
       <span class="kbd-legend">
         <kbd>Space</kbd> 播放/暂停
@@ -198,8 +195,19 @@
         <kbd>↑</kbd><kbd>↓</kbd> 音量
         <kbd>[</kbd><kbd>]</kbd> 起点/终点
       </span>
-      <span class="footer-mark">Video Scissors · Local</span>
+      <span class="footer-mark">文件不出本机</span>
     </footer>
+  </div>
+
+  <!-- 换片键：固定悬浮在右上角，脱离文档流。载入视频后才显示（JS 去掉 .hidden） -->
+  <div id="newVideoBar" class="reel-bar hidden">
+    <button id="newVideoBtn" class="reel-tab" type="button" title="换一个视频（会清空当前切片）">
+      <span class="reel-clapper" aria-hidden="true"></span>
+      <span class="reel-text">
+        <span class="reel-kicker">换片 / New Reel</span>
+        <span class="reel-label">选择新视频</span>
+      </span>
+    </button>
   </div>
 
   <script src="/public/app.js"></script>

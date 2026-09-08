@@ -198,6 +198,7 @@ body::after {
   color: var(--text-3);
   padding-bottom: 4px;
   text-align: right;
+  transition: opacity var(--dur) var(--ease);
 }
 
 .app-main {
@@ -328,6 +329,9 @@ body::after {
   gap: var(--s-4);
   margin-right: -12px;
 }
+/* 投放标记：默认就摆正，悬停时只是轻微放大+加深底色。
+   之前默认 rotate(-4deg) 看着像歪了、像出错了；hover 再摆正又像在修 bug。
+   这块就是给"放进来"一个明确落点，不需要假装有"松动"的拟态。 */
 .uz-drop-mark {
   display: grid;
   place-items: center;
@@ -338,12 +342,11 @@ body::after {
   border: 1px dashed var(--accent-line);
   border-radius: var(--radius);
   background: var(--accent-soft);
-  transform: rotate(-4deg);
-  transition: transform var(--dur) var(--ease), background var(--dur) var(--ease);
+  transition: background var(--dur) var(--ease), transform var(--dur) var(--ease);
 }
 .upload-zone:hover .uz-drop-mark {
-  transform: rotate(0deg) scale(1.04);
   background: rgba(255, 90, 36, 0.2);
+  transform: scale(1.04);
 }
 
 /* 上传中状态 */
@@ -991,7 +994,91 @@ body::after {
 }
 .error-msg { color: var(--danger); font-size: var(--fs-base); font-weight: 500; }
 
-.new-video-bar { display: flex; justify-content: center; }
+/* ============================================================
+   换片键 —— 固定悬浮右上角
+   造型取自「场记板拍板」：左端那块琥珀/墨斜条纹是全场唯一的拟物元件，
+   悬停时会"啪"地合一下（旋转 + 抬起）。琥珀与裁剪手柄同色，语义指向"剪辑动作"。
+   ============================================================ */
+.reel-bar {
+  position: fixed;
+  top: 20px;
+  /* 跟 .app 内容区右边缘对齐：视口 ≥980px 时 .app 居中，要减掉两侧留白；
+     窄屏退化为贴边 20px。用 % 而非 vw —— 后者含滚动条宽度，会错位。 */
+  right: max(20px, calc((100% - 980px) / 2 + 20px));
+  z-index: 50;
+}
+
+.reel-tab {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  min-height: 44px;               /* 触摸目标下限 */
+  padding: 5px var(--s-4) 5px 5px;
+  font: inherit;
+  color: var(--text);
+  background: color-mix(in srgb, var(--surface-2) 86%, transparent);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  box-shadow: var(--sh-2);
+  backdrop-filter: blur(12px) saturate(1.2);
+  -webkit-backdrop-filter: blur(12px) saturate(1.2);
+  cursor: pointer;
+  transition: border-color var(--dur-fast) var(--ease),
+              box-shadow var(--dur-fast) var(--ease),
+              transform var(--dur-fast) var(--ease);
+}
+
+/* 拍板：45° 交替斜条纹，琥珀 = 剪辑语义色 */
+.reel-clapper {
+  width: 34px;
+  height: 34px;
+  flex: none;
+  border-radius: var(--radius-sm);
+  background: repeating-linear-gradient(
+    -45deg,
+    var(--handle) 0 4px,
+    var(--film-hole) 4px 8px
+  );
+  box-shadow: inset 0 0 0 1px var(--line);
+  transition: transform var(--dur) var(--ease);
+}
+
+.reel-text { display: flex; flex-direction: column; gap: 1px; line-height: 1.15; }
+.reel-kicker {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--text-3);
+  transition: color var(--dur-fast) var(--ease);
+}
+.reel-label { font-size: var(--fs-base); font-weight: 600; letter-spacing: 0.01em; }
+
+/* 悬停：边框转橙 + 轻微抬起。拍板不旋转 —— 整张始终端正。 */
+.reel-tab:hover:not(:disabled) {
+  border-color: var(--accent-line);
+  box-shadow: var(--sh-3), 0 0 0 3px var(--accent-soft);
+  transform: translateY(-1px);
+}
+.reel-tab:hover:not(:disabled) .reel-clapper { transform: scale(1.05); }
+.reel-tab:hover:not(:disabled) .reel-kicker { color: var(--accent); }
+.reel-tab:active:not(:disabled) { transform: translateY(1px); }
+.reel-tab:disabled { opacity: 0.42; cursor: not-allowed; }
+.reel-tab:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* 入场：从右上方滑入。纯位移，没有旋转 —— 整张拍板始终是"正"的。
+   包在 prefers-reduced-motion 里。 */
+@media (prefers-reduced-motion: no-preference) {
+  .reel-bar:not(.hidden) { animation: reelIn 420ms var(--ease) both; }
+  @keyframes reelIn {
+    from { opacity: 0; transform: translate(18px, -10px); }
+    to   { opacity: 1; transform: none; }
+  }
+}
+
+/* 换片键会压住 header 右侧的 tagline —— 它出现时让 tagline 淡出，
+   视觉上正好由换片键接管那个位置。用 :has() 纯 CSS 完成，不用改 JS。 */
+body:has(.reel-bar:not(.hidden)) .tagline { opacity: 0; }
 
 /* ============================================================
    切片列表

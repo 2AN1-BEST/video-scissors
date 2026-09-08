@@ -10,6 +10,10 @@ const state = {
 
 /* ===== dom refs ===== */
 const $ = id => document.getElementById(id);
+
+// 初始音量。默认 100% 对戴耳机的用户来说第一声会很炸，从 50% 起步更稳妥。
+const INITIAL_VOLUME = 0.5;
+
 const els = {
   uploadZone: $('uploadZone'),
   fileInput: $('fileInput'),
@@ -194,6 +198,7 @@ function loadVideo(data) {
   updateExportUI();
 
   els.video.src = data.url;
+  els.video.volume = INITIAL_VOLUME; // 每次载入新片都回到 50%
 
   els.uploadZone.classList.add('hidden');
   els.editor.classList.remove('hidden');
